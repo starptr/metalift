@@ -15,8 +15,12 @@ include_path="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platfo
 if [[ $file == *.c ]]
 then
   clang -O0 -I $include_path -I../headers -c -emit-llvm -S $file -o $clang_out
-else
+elif [[ $file == *.cc || $file == *.cpp ]]
+then
   clang++ -std=c++17 -O0 -I $include_path -I../headers -c -emit-llvm -S $file -o $clang_out
+else
+  # Ensure that LLVM_CONFIG_PATH
+  rustc --crate-type=lib --emit=llvm-ir $file -o $clang_out
 fi
 
 #opt -lowerswitch -instnamer -S $clang_out > tmp.ll
@@ -26,4 +30,5 @@ mv tmp.ll $clang_out
 
 loops_out=${file/.$ext/.loops}
 echo "output loops info to:" $loops_out
-opt -analyze -loops $clang_out > $loops_out
+# TODO: re-add -analyze flag using -passes
+opt -loops $clang_out > $loops_out
