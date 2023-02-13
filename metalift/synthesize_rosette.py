@@ -538,8 +538,8 @@ def synthesize(
                         "\n\n".join([str(c) for c in candidatesSMT]),
                     )
                     print("\n".join(verifyLogs))
-                    invGuess.append(resultSynth[1])
-                    print(invGuess)
+                    #invGuess.append(resultSynth[1])
+                    #print(invGuess)
                 raise VerificationFailed("Verification failed")
         finally:
             procSynthesis.terminate()

@@ -60,14 +60,14 @@ basename = "mat1"
 filename = "tests/mat1.ll"
 fnName = "test"
 loopsFile = "tests/mat1.loops"
-cvcPath = "cvc5"
+cvcPath = "z3"
 
 (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile)
 
 invAndPs = [grammar(ci) for ci in loopAndPsInfo]
 lang = targetLang()
 
-candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath)
+candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, noVerify=True)
 
 def codeGen(summary: FnDecl):
   expr = summary.body() 
