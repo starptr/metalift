@@ -19,6 +19,7 @@ Add.codegen = lambda self: f'{" + ".join([str(a.codegen()) for a in self.args])}
 FnDecl.codegen = lambda self: f'def {self.name()}({", ".join([str(a.codegen()) for a in self.arguments()])}):\n  ' \
         f'return {self.body().codegen()}'
 Tuple.codegen = lambda self: f"[{', '.join(map(lambda arg: arg.codegen(), self.args))}]"
+ListT.codegen = Tuple.codegen
 
 def ml_list_get(lst, i):
     return Call("list_get", Int(), lst, i)
@@ -155,7 +156,7 @@ def targetLang():
         element2 = Mul(ml_list_head(x_rest), ml_list_head(y_rest))
         return Add(element1, element2)
     #dotprod2d = FnDeclNonRecursive(DOTPROD2D, Int(), dotprod2d_body(x, y), x, y)
-    def dotpro2d_codegen(x, y):
+    def dotprod2d_codegen(x, y):
         x = x.codegen()
         y = y.codegen()
         return f"np.dot({x}, {y})"
@@ -166,7 +167,7 @@ def targetLang():
     # TODO: handle input size < 2
     # TODO: for size < 2, don't call dotprod
     def conv1d1x2_body(vec, kernel):
-        vec_size = ml_list_length(x)
+        vec_size = ml_list_length(vec)
         kernel_size = IntLit(2)
         cur_prod = ml_dotprod2d(vec, kernel)
         vec_rest = ml_list_tail(vec, IntLit(1))
