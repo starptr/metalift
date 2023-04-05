@@ -6,11 +6,19 @@ from metalift.ir import *
 from metalift.analysis import CodeInfo, analyze
 
 from metalift.synthesize_auto import synthesize
+from metalift.transpiler import Transpiler
 
 MUL1D = "elementwise_mul"
 SAME_LEN = "same_length"
 CONV1D1X2 = "conv1d1x2"
 DOTPROD2D = "dotprod_2d"
+
+Lit.codegen = lambda self: self.val()
+Var.codegen = lambda self: self.name()
+Add.codegen = lambda self: f'{" + ".join([str(a.codegen()) for a in self.args])}'
+FnDecl.codegen = lambda self: f'def {self.name()}({", ".join([str(a.codegen()) for a in self.arguments()])}):\n  ' \
+        f'return {self.body().codegen()}'
+Tuple.codegen = lambda self: f"[{', '.join(map(lambda arg: arg.codegen(), self.args))}]"
 
 def ml_list_get(lst, i):
     return Call("list_get", Int(), lst, i)
@@ -109,7 +117,10 @@ def grammar(ci: CodeInfo):
         #inv = And(initial, loop_cond)
         #summary = And(inv, post)
         #summary = BoolLit(True)
-        return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+
+        #return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        rv = NonTerm(Bool(), isStart=False)
+        return {rv: summary}
     else:
         an_input = ci.readVars[0]
         an_output = Choose(*ci.modifiedVars)
@@ -129,10 +140,11 @@ def grammar(ci: CodeInfo):
         # Correct:
         summary = Implies(valid, check_ans)
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        rv = NonTerm(Bool(), isStart=True)
 
 def targetLang():
-    x = Var("x", ListT(Int()))
-    y = Var("y", ListT(Int()))
+    #x = Var("x", ListT(Int()))
+    #y = Var("y", ListT(Int()))
 
     # Ignores the rest of x if y is shorter
     # TODO: just take idx 1
@@ -142,7 +154,14 @@ def targetLang():
         y_rest = ml_list_tail(y, IntLit(1))
         element2 = Mul(ml_list_head(x_rest), ml_list_head(y_rest))
         return Add(element1, element2)
-    dotprod2d = FnDeclNonRecursive(DOTPROD2D, Int(), dotprod2d_body(x, y), x, y)
+    #dotprod2d = FnDeclNonRecursive(DOTPROD2D, Int(), dotprod2d_body(x, y), x, y)
+    def dotpro2d_codegen(x, y):
+        x = x.codegen()
+        y = y.codegen()
+        return f"np.dot({x}, {y})"
+    dotprod2d = Target(DOTPROD2D, [ListT(Int()), ListT(Int())], Int(),
+                       lambda x, y: dotprod2d_body(x, y),
+                       dotprod2d_codegen)
 
     # TODO: handle input size < 2
     # TODO: for size < 2, don't call dotprod
@@ -155,7 +174,14 @@ def targetLang():
         general_answer = ml_list_prepend(cur_prod, recursed)
         #return Ite(Eq(vec_size, kernel_size), ml_list_prepend(cur_prod, ml_list_empty()), general_answer)
         return Ite(Lt(vec_size, kernel_size), ml_list_empty(), general_answer)
-    conv1d1x2 = FnDecl(CONV1D1X2, ListT(Int()), conv1d1x2_body(x, y), x, y)
+    #conv1d1x2 = FnDecl(CONV1D1X2, ListT(Int()), conv1d1x2_body(x, y), x, y)
+    def conv1d1x2_codegen(vec, kernel):
+        vec = vec.codegen()
+        kernel = kernel.codegen()
+        return f"np.convolve({vec}, {kernel}, mode='valid')"
+    conv1d1x2 = Target(CONV1D1X2, [ListT(Int()), ListT(Int())], ListT(Int()),
+                       lambda vec, kernel: conv1d1x2_body(vec, kernel),
+                       conv1d1x2_codegen)
 
     return [dotprod2d, conv1d1x2]
 
