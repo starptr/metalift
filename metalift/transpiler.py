@@ -58,7 +58,7 @@ class Transpiler:
                     ci.readVars,
                     ci.modifiedVars,
                     self.grammar(
-                        ci.readVars, ci.modifiedVars[0], ci.name.startswith("inv")
+                        ci.readVars, ci.modifiedVars, ci.name.startswith("inv")
                     ),
                 )
                 for ci in loopAndPsInfo
