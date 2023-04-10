@@ -51,23 +51,21 @@ def ml_dotprod2d(x, y):
 def ml_conv1d1x2(vec, kernel):
     return Call(CONV1D1X2, ListT(Int()), vec, kernel)
 
-def grammar(ci: CodeInfo):
-    name = ci.name
-
+def grammar(readVars, modifiedVars, isInv):
     print("INV VARS MV HERE")
-    print(*ci.modifiedVars)
+    print(modifiedVars)
     print("INV VARS RV HERE")
-    print(*ci.readVars)
+    print(readVars)
 
-    if name.startswith("inv"):
+    if isInv:
         # mV[0] is list, mV[1] is int
 
-        an_input = Choose(*ci.readVars)
+        an_input = Choose(*readVars)
         #an_output = Choose(*ci.modifiedVars)
         #an_output_i32 = Choose(ci.modifiedVars[0], ci.modifiedVars[1], ci.modifiedVars[2], ci.modifiedVars[4])
         #an_output_list = ci.modifiedVars[3]
-        an_output_i32 = ci.modifiedVars[1]
-        an_output_list = ci.modifiedVars[0]
+        an_output_i32 = modifiedVars[1]
+        an_output_list = modifiedVars[0]
 
         #initial = Choose(Ge(an_output_i32, IntLit(0)),
         #                 Gt(an_output_i32, IntLit(0)),
@@ -123,9 +121,9 @@ def grammar(ci: CodeInfo):
         rv = NonTerm(Bool(), isStart=False)
         return {rv: summary}
     else:
-        an_input = ci.readVars[0]
-        an_output = Choose(*ci.modifiedVars)
-        x = ci.readVars[0]
+        an_input = readVars[0]
+        an_output = Choose(*modifiedVars)
+        x = readVars[0]
         unknown_const = Choose(IntLit(0), IntLit(1), IntLit(2), IntLit(3))
         y = ml_list_prepend(unknown_const, ml_list_prepend(unknown_const, ml_list_empty()))
         # change this to Implies
@@ -140,8 +138,9 @@ def grammar(ci: CodeInfo):
         #summary = Ite(valid, check_ans, ml_list_empty())
         # Correct:
         summary = Implies(valid, check_ans)
-        return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        #return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
         rv = NonTerm(Bool(), isStart=True)
+        return {rv: summary}
 
 def targetLang():
     #x = Var("x", ListT(Int()))
@@ -216,21 +215,8 @@ def codeGen(summary: FnDecl):
     return eval(expr)
 
 def runner():
-    basename = "conv1d1x2"
-    filename = "tests/conv1d1x2.ll"
-    fnName = "test"
-    loopsFile = "tests/conv1d1x2.loops"
-    cvcPath = "cvc5"
-
-    (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile)
-
-    invAndPs = [grammar(ci) for ci in loopAndPsInfo]
-    lang = targetLang()
-
-    # noVerify=True is OK, since synthesis will not create a candidate for kernel that's too small
-    candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, noVerify=True)
-
-    for c in candidates:
-        print(codeGen(c), "\n")
+    t = Transpiler(grammar, cvcPath=shutil.which("cvc5"))
+    r = t.transpile("tests/conv1d1x2.ll", "test")
+    print(r.codegen())
 
 runner()
