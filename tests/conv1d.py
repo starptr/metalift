@@ -47,8 +47,8 @@ def ml_dotprod2d(x, y):
 def ml_dotprod(x, y):
     return Call(DOTPROD, Int(), x, y)
 
-def ml_conv1d1x2(vec, kernel):
-    return Call(CONV1D1X2, ListT(Int()), vec, kernel)
+def ml_conv1d1x2(vec, kernel, stride):
+    return Call(CONV1D1X2, ListT(Int()), vec, kernel, stride)
 
 def grammar(ci: CodeInfo, kernel_size=2):
     name = ci.name
@@ -58,7 +58,8 @@ def grammar(ci: CodeInfo, kernel_size=2):
     print("INV VARS RV HERE")
     print(*ci.readVars)
 
-    unknown_const = Choose(IntLit(0), IntLit(1), IntLit(2), IntLit(3))
+    unknown_const = Choose(*[IntLit(coef) for coef in range(-3, 3 + 1)])
+    stride = Choose(IntLit(1), IntLit(2), IntLit(3), IntLit(4))
     y = reduce(lambda acc, _cur: ml_list_prepend(unknown_const, acc), range(kernel_size), ml_list_empty())
 
     if name.startswith("inv"):
@@ -81,7 +82,8 @@ def grammar(ci: CodeInfo, kernel_size=2):
         # being the convolution of the input and kernel.
         induction = Eq(an_output_list,
                        ml_conv1d1x2(ml_list_take(an_input, Add(an_output_i32, IntLit(1))),
-                                    y))
+                                    y,
+                                    stride))
         summary = Implies(valid, And(preloop, And(postloop, induction)))
 
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
@@ -94,7 +96,7 @@ def grammar(ci: CodeInfo, kernel_size=2):
         an_output = Choose(*ci.modifiedVars)
         x = ci.readVars[0]
         valid = Gt(ml_list_length(x), IntLit(1))
-        ans = ml_conv1d1x2(an_input, y)
+        ans = ml_conv1d1x2(an_input, y, stride)
         check_ans = Eq(ans, an_output)
         summary = Implies(valid, check_ans)
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
@@ -102,9 +104,8 @@ def grammar(ci: CodeInfo, kernel_size=2):
 def targetLang(kernel_size=2):
     x = Var("x", ListT(Int()))
     y = Var("y", ListT(Int()))
+    s = Var("s", ListT(Int()))
 
-    # Ignores the rest of x if y is shorter
-    # TODO: just take idx 1
     def dotprod2d_body(x, y):
         element1 = Mul(ml_list_head(x), ml_list_head(y))
         x_rest = ml_list_tail(x, IntLit(1))
@@ -124,16 +125,16 @@ def targetLang(kernel_size=2):
 
     # TODO: handle input size < 2
     # TODO: for size < 2, don't call dotprod
-    def conv1d1x2_body(vec, kernel):
+    def conv1d1x2_body(vec, kernel, stride):
         nonlocal kernel_size
         vec_size = ml_list_length(x)
         kernel_size = IntLit(kernel_size)
         cur_prod = ml_dotprod(vec, kernel)
-        vec_rest = ml_list_tail(vec, IntLit(1))
-        recursed = ml_conv1d1x2(vec_rest, kernel)
+        vec_rest = ml_list_tail(vec, stride)
+        recursed = ml_conv1d1x2(vec_rest, kernel, stride)
         general_answer = ml_list_prepend(cur_prod, recursed)
         return Ite(Lt(vec_size, kernel_size), ml_list_empty(), general_answer)
-    conv1d1x2 = FnDeclRecursive(CONV1D1X2, ListT(Int()), conv1d1x2_body(x, y), x, y)
+    conv1d1x2 = FnDeclRecursive(CONV1D1X2, ListT(Int()), conv1d1x2_body(x, y, s), x, y, s)
 
     return [dotprod2d, dotprod, conv1d1x2]
 
@@ -158,10 +159,11 @@ def codeGen(summary: FnDecl):
             name = expr.name()
             if name == CONV1D1X2:
                 name = "torch.nn.functional.conv1d"
-                assert(len(eval_args) == 2)
+                assert(len(eval_args) == 3)
                 input = f"torch.tensor([[{eval_args[0]}]]).float().to(mps_device)"
                 kernel = f"torch.tensor([[{eval_args[1]}]]).float().to(mps_device)"
-                return f"{name}({input}, {kernel})"
+                stride_arg = f"stride={eval_args[2]}"
+                return f"{name}({input}, {kernel}, {stride_arg})"
             elif name == "list_empty":
                 return f"list_empty()"
             elif name == "list_prepend":
@@ -193,11 +195,10 @@ def codeGen(summary: FnDecl):
             raise NotImplementedError(f"codegen not implemented for {expr}")
     return eval(summary)
 
-def runner():
-    basename = "conv1d"
-    filename = "tests/conv1d.ll"
+def runner(basename):
+    filename = f"tests/{basename}.ll"
     fnName = "test"
-    loopsFile = "tests/conv1d.loops"
+    loopsFile = f"tests/{basename}.loops"
     cvcPath = "cvc5"
 
     (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile)
@@ -239,4 +240,6 @@ print(o)
         # print(o)
         print(code)
 
-runner()
+runner("conv1d")
+# TODO: fix this
+#runner("conv1d_2")
