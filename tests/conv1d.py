@@ -9,7 +9,7 @@ from metalift.synthesis_common import SynthesisFailed
 
 from metalift.synthesize_auto import synthesize
 
-LIST_BOUND = 3
+LIST_BOUND = 4
 
 MUL1D = "elementwise_mul"
 SAME_LEN = "same_length"
@@ -205,11 +205,12 @@ def runner(basename):
 
 
     candidates = []
-    for kernel_size in range(1, LIST_BOUND):
+    for kernel_size in range(2, 3):
         invAndPs = [grammar(ci, kernel_size) for ci in loopAndPsInfo]
         lang = targetLang(kernel_size)
         try:
-            candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=LIST_BOUND, noVerify=True)
+            print(f"Trying synthesis with kernel size {kernel_size}")
+            candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=4, noVerify=True)
             break
         except SynthesisFailed:
             print("Synthesis failed")
@@ -240,6 +241,6 @@ print(o)
         # print(o)
         print(code)
 
-runner("conv1d")
+#runner("conv1d")
 # TODO: fix this
-#runner("conv1d_2")
+runner("conv1d_2")
