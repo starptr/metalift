@@ -1,3 +1,4 @@
+from functools import reduce
 from metalift.ir import *
 from metalift.analysis import CodeInfo, analyze
 from metalift.synthesis_common import SynthesisFailed
@@ -7,6 +8,8 @@ from metalift.synthesize_auto import synthesize
 LIST_BOUND = 4
 
 CONV2D2X2 = "conv2d2x2"
+CONV2D2X2_HELPER = "conv2d2x2_helper"
+CONV2D2X2_INNER = "conv2d2x2_inner"
 DOTPROD2X2 = "dotprod_2x2"
 SLICE_COPY_2X2 = "slide_copy_2x2"
 
@@ -40,6 +43,9 @@ def ml_list_list_length(lst):
 def ml_list_list_prepend(e, lst):
     return Call("list_list_prepend", ListT(ListT(Int())), e, lst)
 
+def ml_list_list_empty():
+    return Call("list_list_empty", ListT(ListT(Int())))
+
 def ml_min(a, b):
     return Ite(Lt(a, b), a, b)
 
@@ -47,7 +53,30 @@ def ml_dotprod2x2(mat, kernel, i, j):
     return Call(DOTPROD2X2, Int(), mat, kernel, i, j)
 
 def ml_conv2d2x2(mat, kernel, i, j):
-    return Call(CONV2D2X2, ListT(ListT(Int())), mat, kernel, i, j)
+    return Call(CONV2D2X2, ListT(ListT(Int())), mat, kernel)
+
+def ml_conv2d2x2_helper(mat, kernel, i):
+    return Call(CONV2D2X2_HELPER, ListT(ListT(Int())), mat, kernel, i)
+
+def ml_conv2d2x2_inner(mat, kernel, i, j):
+    return Call(CONV2D2X2_INNER, ListT(Int()), mat, kernel, i, j)
+
+def grammar(ci: CodeInfo):
+    name = ci.name
+    print("INV VARS MV HERE")
+    print(*ci.modifiedVars)
+    print("INV VARS RV HERE")
+    print(*ci.readVars)
+
+    unknown_const = Choose(IntLit(-2), IntLit(-1), IntLit(0), IntLit(1), IntLit(2))
+    kernel_r1 = ml_list_prepend(unknown_const, ml_list_prepend(unknown_const, ml_list_empty()))
+    kernel_r2 = kernel_r1
+    kernel = ml_list_list_prepend(kernel_r1, ml_list_list_prepend(kernel_r2, ml_list_list_empty()))
+
+    if name.startswith("inv"):
+        return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[2]), *ci.modifiedVars, *ci.readVars)
+    else:
+        return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[0]), *ci.modifiedVars, *ci.readVars)
 
 def targetLang():
     mat = Var("mat", ListT(ListT(Int())))
@@ -77,21 +106,48 @@ def targetLang():
         return Add(Add(pa, pb), Add(pc, pd))
     dotprod2x2 = FnDecl(DOTPROD2X2, Int(), dotprod2x2_body(mat, kernel, i, j), mat, kernel, i, j)
 
-    def conv2d2x2_body(mat, kernel, i, j):
-        last_valid_i = ml_list_list_length(mat)
-        last_valid_j = ml_list_length(ml_list_list_get(mat, IntLit(0)))
+    def conv2d2x2Helper_body(mat, kernel, i):
+        last_valid_i = Sub(ml_list_list_length(mat), ml_list_list_length(kernel)) # TODO: subtract kernel
         base_case_or = lambda general_case: Ite(Gt(i, last_valid_i), ml_list_empty(), general_case)
-        base_case_2_or = lambda general_case: Ite(Gt(j, last_valid_j), ml_list_empty(), general_case)
 
-        cur_term = ml_dotprod2x2(mat, kernel, i, j)
-        recursed = ml_conv2d2x2(mat, kernel, i, Add(j, IntLit(1)))
-        general_answer_2 = ml_list_prepend(cur_term, recursed)
-
-        cur_row = base_case_2_or(general_answer_2)
-        recursed_row = ml_conv2d2x2(mat, kernel, Add(i, IntLit(1)), j)
+        cur_row = ml_conv2d2x2_inner(mat, kernel, i, IntLit(0))
+        recursed_row = ml_conv2d2x2_helper(mat, kernel, Add(i, IntLit(1)))
         general_answer = ml_list_list_prepend(cur_row, recursed_row)
 
         return base_case_or(general_answer)
-    conv2d2x2 = FnDeclRecursive(CONV2D2X2, ListT(ListT(Int())), conv2d2x2_body(mat, kernel, i, j), mat, kernel, i, j)
+    conv2d2x2_helper = FnDeclRecursive(CONV2D2X2_HELPER, ListT(ListT(Int())), conv2d2x2Helper_body(mat, kernel, i), mat, kernel, i)
 
-    return [dotprod2x2, conv2d2x2]
+    def conv2d2x2Inner_body(mat, kernel, i, j):
+        last_valid_j = Sub(ml_list_length(ml_list_list_get(mat, IntLit(0))), ml_list_length(ml_list_list_get(kernel, IntLit(0))))
+        base_case_2_or = lambda general_case: Ite(Gt(j, last_valid_j), ml_list_empty(), general_case)
+
+        cur_term = ml_dotprod2x2(mat, kernel, i, j)
+        recursed = ml_conv2d2x2_inner(mat, kernel, i, Add(j, IntLit(1)))
+        general_answer_2 = ml_list_prepend(cur_term, recursed)
+        return base_case_2_or(general_answer_2)
+    conv2d2x2_inner = FnDeclRecursive(CONV2D2X2_INNER, ListT(Int()), conv2d2x2Inner_body(mat, kernel, i, j), mat, kernel, i, j)
+
+    def conv2d2x2_body(mat, kernel):
+        return ml_conv2d2x2_helper(mat, kernel, IntLit(0))
+    conv2d2x2 = FnDeclRecursive(CONV2D2X2, ListT(ListT(Int())), conv2d2x2_body(mat, kernel), mat, kernel)
+
+    return [dotprod2x2, conv2d2x2, conv2d2x2_inner, conv2d2x2_helper]
+
+def runner(basename):
+    filename = f"tests/{basename}.ll"
+    fnName = "test"
+    loopsFile = f"tests/{basename}.loops"
+    cvcPath = "cvc5"
+
+    (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile)
+
+    candidates = []
+
+    invAndPs = [grammar(ci) for ci in loopAndPsInfo]
+    lang = targetLang()
+    candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=LIST_BOUND, noVerify=True)
+
+    for c in candidates:
+        print(c)
+
+runner("conv2d")
