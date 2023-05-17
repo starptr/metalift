@@ -76,8 +76,37 @@ def grammar(ci: CodeInfo):
     kernel = ml_list_list_prepend(kernel_r1, ml_list_list_prepend(kernel_r2, ml_list_list_empty()))
 
     if name.startswith("inv0"):
-        return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[2]), *ci.modifiedVars, *ci.readVars)
+        an_output_i32 = Choose(ci.modifiedVars[1], ci.modifiedVars[3])
+        an_output_list = ci.modifiedVars[0]
+        an_output_nlist = ci.modifiedVars[2]
+        an_input_nlist = ci.readVars[0]
+        valid = Gt(ml_list_list_length(an_input_nlist), IntLit(1))
+        preloop = Ge(an_output_i32, IntLit(0))
+        postloop = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
+        induction = Eq(an_output_nlist, ml_conv2d2x2_helper(an_input_nlist,
+                                                            kernel,
+                                                            IntLit(0),
+                                                            Add(an_output_i32, IntLit(1))))
+        summary = Implies(valid, And(preloop, And(postloop, induction)))
+        return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
     elif name.startswith("inv1"):
+        an_output_i32 = Choose(ci.modifiedVars[1], ci.modifiedVars[3])
+        an_output_list = ci.modifiedVars[0]
+        an_output_nlist = ci.modifiedVars[2]
+        an_input_nlist = ci.readVars[0]
+        length = ml_list_length(ml_list_list_get(an_input_nlist, an_output_i32))
+        valid = Gt(length, IntLit(1))
+        preloop = Ge(an_output_i32, IntLit(0))
+        postloop = Lt(an_output_i32, length)
+        preloop_outer = Ge(an_output_i32, IntLit(0))
+        postloop_outer = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
+        induction = Eq(an_output_list, ml_conv2d2x2_inner(an_input_nlist,
+                                                           kernel,
+                                                           an_output_i32,
+                                                           an_output_i32,
+                                                           Add(an_output_i32, IntLit(1))))
+        summary = Implies(valid, And(preloop, And(postloop, And(preloop_outer, And(postloop_outer, induction)))))
+        return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
         return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[2]), *ci.modifiedVars, *ci.readVars)
     else:
         an_output = ci.modifiedVars[0]
