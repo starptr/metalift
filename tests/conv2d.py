@@ -55,8 +55,8 @@ def ml_dotprod2x2(mat, kernel, i, j):
 def ml_conv2d2x2(mat, kernel):
     return Call(CONV2D2X2, ListT(ListT(Int())), mat, kernel)
 
-def ml_conv2d2x2_helper(mat, kernel, i):
-    return Call(CONV2D2X2_HELPER, ListT(ListT(Int())), mat, kernel, i)
+def ml_conv2d2x2_helper(mat, kernel, i, stopping):
+    return Call(CONV2D2X2_HELPER, ListT(ListT(Int())), mat, kernel, i, stopping)
 
 def ml_conv2d2x2_inner(mat, kernel, i, j, stopping):
     return Call(CONV2D2X2_INNER, ListT(Int()), mat, kernel, i, j, stopping)
@@ -118,20 +118,19 @@ def targetLang():
         return Add(Add(pa, pb), Add(pc, pd))
     dotprod2x2 = FnDecl(DOTPROD2X2, Int(), dotprod2x2_body(mat, kernel, i, j), mat, kernel, i, j)
 
-    def conv2d2x2Helper_body(mat, kernel, i):
-        last_valid_i = Sub(ml_list_list_length(mat), ml_list_list_length(kernel)) # TODO: subtract kernel
+    def conv2d2x2Helper_body(mat, kernel, i, stopping):
+        last_valid_i = Sub(stopping, IntLit(1))
         base_case_or = lambda general_case: Ite(Gt(i, last_valid_i), ml_list_empty(), general_case)
 
         last_valid_j = Sub(ml_list_length(ml_list_list_get(mat, IntLit(0))), ml_list_length(ml_list_list_get(kernel, IntLit(0))))
         cur_row = ml_conv2d2x2_inner(mat, kernel, i, IntLit(0), Add(last_valid_j, IntLit(1)))
-        recursed_row = ml_conv2d2x2_helper(mat, kernel, Add(i, IntLit(1)))
+        recursed_row = ml_conv2d2x2_helper(mat, kernel, Add(i, IntLit(1)), stopping)
         general_answer = ml_list_list_prepend(cur_row, recursed_row)
 
         return base_case_or(general_answer)
-    conv2d2x2_helper = FnDeclRecursive(CONV2D2X2_HELPER, ListT(ListT(Int())), conv2d2x2Helper_body(mat, kernel, i), mat, kernel, i)
+    conv2d2x2_helper = FnDeclRecursive(CONV2D2X2_HELPER, ListT(ListT(Int())), conv2d2x2Helper_body(mat, kernel, i, stopping), mat, kernel, i, stopping)
 
     def conv2d2x2Inner_body(mat, kernel, i, j, stopping):
-        #last_valid_j = Sub(ml_list_length(ml_list_list_get(mat, IntLit(0))), ml_list_length(ml_list_list_get(kernel, IntLit(0))))
         last_valid_j = Sub(stopping, IntLit(1))
         base_case_2_or = lambda general_case: Ite(Gt(j, last_valid_j), ml_list_empty(), general_case)
 
@@ -142,7 +141,8 @@ def targetLang():
     conv2d2x2_inner = FnDeclRecursive(CONV2D2X2_INNER, ListT(Int()), conv2d2x2Inner_body(mat, kernel, i, j, stopping), mat, kernel, i, j, stopping)
 
     def conv2d2x2_body(mat, kernel):
-        return ml_conv2d2x2_helper(mat, kernel, IntLit(0))
+        last_valid_i = Sub(ml_list_list_length(mat), ml_list_list_length(kernel)) # TODO: subtract kernel
+        return ml_conv2d2x2_helper(mat, kernel, IntLit(0), Add(last_valid_i, IntLit(1)))
     conv2d2x2 = FnDeclRecursive(CONV2D2X2, ListT(ListT(Int())), conv2d2x2_body(mat, kernel), mat, kernel)
 
     return [dotprod2x2, conv2d2x2, conv2d2x2_inner, conv2d2x2_helper]
