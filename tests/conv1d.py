@@ -306,7 +306,7 @@ def codeGenToGemmini(summary: FnDecl):
     return eval(summary)
 
 def write_to_disk_for_millennium(str):
-    with open("/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/conv1d_synth.c") as file:
+    with open("/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/conv1d_synth.c", "w") as file:
         file.write(str)
 
 def runner(basename):
@@ -315,7 +315,7 @@ def runner(basename):
     loopsFile = f"tests/{basename}.loops"
     cvcPath = "cvc5"
 
-    (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile)
+    (vars, invAndPs, preds, vc, loopAndPsInfo) = analyze(filename, fnName, loopsFile, log=False)
 
 
     candidates = []
