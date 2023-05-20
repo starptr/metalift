@@ -378,7 +378,7 @@ int main() {
 """
         code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
         print(code)
-        #write_to_disk_for_millennium(code)
+        write_to_disk_for_millennium(code)
 
 # # Expected:
 # import torch
