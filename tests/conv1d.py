@@ -178,6 +178,7 @@ def codeGenToPytorch(summary: FnDecl):
                     cdr = flatten_prepends(arguments[1])
                     return [car] + cdr
                 flattened = flatten_prepends(expr)
+                print(flattened)
                 return f"[{', '.join(flattened)}]"
             raise NotImplementedError(f"codegen not implemented for function call {name}")
         elif isinstance(expr, Lit):
@@ -203,16 +204,40 @@ def codeGenToGemmini(summary: FnDecl):
             left = expr.e1()
             right = expr.e2()
             if isinstance(left, Call):
-                return f"({eval(left)})"
+                return f"{eval(left)}"
             else:
-                return f"({eval(right)})"
+                return f"{eval(right)}"
         elif isinstance(expr, FnDecl) or isinstance(expr, FnDeclRecursive):
             arg = eval(expr.arguments()[0])
             body = eval(expr.body()) # Sets kernel_vals
-            return f"void runner(elem_t In[KER_LEN][LEN], elem_t Out[1][SLIDES]) {{\n" \
+            macros = f"#define KER_LEN {len(kernel_vals)}\n" \
+                    f"#define LEN @@@RUNNER_LEN@@@\n" \
+                    f"#define SLIDES ((LEN) - (KER_LEN) + 1)\n"
+            helpers = \
+                    """
+                    void print1d(elem_t Out[1][SLIDES]) {
+                      for (int j = 0; j < SLIDES; j++) {
+                        printf("%d, ", Out[0][j]);
+                      }
+                      printf("\\n");
+                    }
+                    """
+            kernel_assignments = [f"weights[0][{i}] = {weight};" for i, weight in enumerate(kernel_vals)]
+            kernel_assignments = "\n".join(kernel_assignments)
+            kernel_zeros = f"for (int i = 1; i < KER_LEN; i++) {{\n" \
+                    f"for (int j = 0; j < KER_LEN; j++) {{\n" \
+                    f"weights[i][j] = 0;\n" \
+                    f"}}\n" \
+                    f"}}\n"
+            code = f"{macros}\n" \
+                    f"{helpers}\n" \
+                    f"void runner(elem_t In[KER_LEN][LEN], elem_t Out[1][SLIDES]) {{\n" \
                     f"static elem_t weights[KER_LEN][KER_LEN];\n" \
-                    f"{kernel_vals}\n" \
+                    f"{kernel_assignments}\n" \
+                    f"{kernel_zeros}\n" \
+                    f"{body}\n" \
                     f"}}"
+            return code
             #return f"tiled_conv_auto(1, 1, LEN, 1," \
             #        f"1, 1, SLIDES," \
             #        f"1, 1, 1, 0, 2," \
@@ -222,20 +247,31 @@ def codeGenToGemmini(summary: FnDecl):
             #        f"NULL," \
             #        f"(elem_t*)Out," \
             #        f"0, 0, 0, 0, 0, WS);"
-            return f"def {expr.name()}({', '.join([eval(arg) for arg in expr.arguments()])}):\n    " \
-                    f"return {eval(expr.body())}"
+            #return f"def {expr.name()}({', '.join([eval(arg) for arg in expr.arguments()])}):\n    " \
+            #        f"return {eval(expr.body())}"
         elif isinstance(expr, Call):
             eval_args = []
             for a in expr.arguments():
                 eval_args.append(eval(a))
             name = expr.name()
             if name == CONV1D1X2:
-                name = "torch.nn.functional.conv1d"
+                name = "tiled_conv_auto"
                 assert(len(eval_args) == 2)
-                kernel_vals = eval_args[1]
-                input = f"torch.tensor([[{eval_args[0]}]]).float().to(mps_device)"
-                kernel = f"torch.tensor([[{eval_args[1]}]]).float().to(mps_device)"
-                return f"{name}({input}, {kernel})"
+
+                code = f"{name}(\n" \
+                        f"1, 1, LEN, 1,\n" \
+                        f"1, 1, SLIDES,\n" \
+                        f"1, 1, 1, 0, KER_LEN,\n" \
+                        f"false, false, false, false, false,\n" \
+                        f"(elem_t*)In,\n" \
+                        f"(elem_t*)weights,\n" \
+                        f"NULL,\n" \
+                        f"(elem_t*)Out,\n" \
+                        f"0, 0, 0, 0, 0, WS);\n"
+                return code
+                #input = f"torch.tensor([[{eval_args[0]}]]).float().to(mps_device)"
+                #kernel = f"torch.tensor([[{eval_args[1]}]]).float().to(mps_device)"
+                #return f"{name}({input}, {kernel})"
             elif name == "list_empty":
                 return f"list_empty()"
             elif name == "list_prepend":
@@ -252,6 +288,8 @@ def codeGenToGemmini(summary: FnDecl):
                     cdr = flatten_prepends(arguments[1])
                     return [car] + cdr
                 flattened = flatten_prepends(expr)
+                if len(flattened) == 2:
+                    kernel_vals = flattened
                 return f"[{', '.join(flattened)}]"
             raise NotImplementedError(f"codegen not implemented for function call {name}")
         elif isinstance(expr, Lit):
@@ -277,7 +315,9 @@ def runner(basename):
 
 
     candidates = []
+    kernel_len = 1
     for kernel_size in range(1, LIST_BOUND):
+        kernel_len = kernel_size
         invAndPs = [grammar(ci, kernel_size) for ci in loopAndPsInfo]
         lang = targetLang(kernel_size)
         try:
@@ -293,15 +333,46 @@ def runner(basename):
         inner = codeGenToGemmini(c)
         code = \
 """
-import torch
-mps_device = torch.device("mps")
+#include <stdint.h>
+#include <stddef.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#ifndef BAREMETAL
+#include <sys/mman.h>
+#endif
+#include "include/gemmini_testutils.h"
 """ + \
 inner + \
 """
-l = [i for i in range(100000)]
-o = test(None, l)
-print(o)
+int main() {
+#ifndef BAREMETAL
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+      perror("mlockall failed");
+      exit(1);
+    }
+#endif
+
+  printf("Size of DIM: %d\\n", DIM);
+  printf("Flush Gemmini TLB of stale virtual addresses\\n");
+  gemmini_flush(0);
+
+  static elem_t In[2][LEN];
+  static elem_t Out[1][SLIDES];
+  for (int j = 0; j < LEN; j++) {
+    In[0][j] = j;
+  }
+
+  uint64_t start_g = read_cycles();
+  runner(In, Out);
+  uint64_t end_g = read_cycles();
+  printf("Hardware conv took %llu cycles\\n", end_g - start_g);
+
+  print1d(Out);
+  exit(0);
+}
 """
+        code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
         print(code)
 
 # # Expected:
