@@ -193,6 +193,80 @@ def codeGenToPytorch(summary: FnDecl):
             raise NotImplementedError(f"codegen not implemented for {expr}")
     return eval(summary)
 
+def codeGenToGemmini(summary: FnDecl):
+    kernel_vals = []
+    def eval(expr):
+        nonlocal kernel_vals
+        if isinstance(expr, ValueRef):
+            return expr.name
+        elif isinstance(expr, Eq):
+            left = expr.e1()
+            right = expr.e2()
+            if isinstance(left, Call):
+                return f"({eval(left)})"
+            else:
+                return f"({eval(right)})"
+        elif isinstance(expr, FnDecl) or isinstance(expr, FnDeclRecursive):
+            arg = eval(expr.arguments()[0])
+            body = eval(expr.body()) # Sets kernel_vals
+            return f"void runner(elem_t In[KER_LEN][LEN], elem_t Out[1][SLIDES]) {{\n" \
+                    f"static elem_t weights[KER_LEN][KER_LEN];\n" \
+                    f"{kernel_vals}\n" \
+                    f"}}"
+            #return f"tiled_conv_auto(1, 1, LEN, 1," \
+            #        f"1, 1, SLIDES," \
+            #        f"1, 1, 1, 0, 2," \
+            #        f"false, false, false, false, false," \
+            #        f"(elem_t*)In," \
+            #        f"(elem_t*)weights," \
+            #        f"NULL," \
+            #        f"(elem_t*)Out," \
+            #        f"0, 0, 0, 0, 0, WS);"
+            return f"def {expr.name()}({', '.join([eval(arg) for arg in expr.arguments()])}):\n    " \
+                    f"return {eval(expr.body())}"
+        elif isinstance(expr, Call):
+            eval_args = []
+            for a in expr.arguments():
+                eval_args.append(eval(a))
+            name = expr.name()
+            if name == CONV1D1X2:
+                name = "torch.nn.functional.conv1d"
+                assert(len(eval_args) == 2)
+                kernel_vals = eval_args[1]
+                input = f"torch.tensor([[{eval_args[0]}]]).float().to(mps_device)"
+                kernel = f"torch.tensor([[{eval_args[1]}]]).float().to(mps_device)"
+                return f"{name}({input}, {kernel})"
+            elif name == "list_empty":
+                return f"list_empty()"
+            elif name == "list_prepend":
+                def flatten_prepends(expr):
+                    name = expr.name()
+                    # Base case
+                    if name == "list_empty":
+                        return []
+                    # General case
+                    assert(name == "list_prepend")
+                    arguments = expr.arguments()
+                    assert(len(arguments) == 2)
+                    car = eval(arguments[0])
+                    cdr = flatten_prepends(arguments[1])
+                    return [car] + cdr
+                flattened = flatten_prepends(expr)
+                return f"[{', '.join(flattened)}]"
+            raise NotImplementedError(f"codegen not implemented for function call {name}")
+        elif isinstance(expr, Lit):
+            return str(expr.val())
+        elif isinstance(expr, Var):
+            return expr.name()
+        elif isinstance(expr, Implies):
+            left = expr.args[0]
+            right = expr.args[1]
+            return eval(right)
+            return f"not ({eval(left)}) or ({eval(right)})"
+        else:
+            raise NotImplementedError(f"codegen not implemented for {expr}")
+    return eval(summary)
+
 def runner(basename):
     filename = f"tests/{basename}.ll"
     fnName = "test"
@@ -216,7 +290,7 @@ def runner(basename):
         if c.args[0] != "test":
             continue
         print(c.args[0])
-        inner = codeGenToPytorch(c)
+        inner = codeGenToGemmini(c)
         code = \
 """
 import torch
