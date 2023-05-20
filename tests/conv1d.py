@@ -376,7 +376,7 @@ int main() {
   exit(0);
 }
 """
-        code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
+        code = code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
         print(code)
         #write_to_disk_for_millennium(code)
 
