@@ -305,9 +305,9 @@ def codeGenToGemmini(summary: FnDecl):
             raise NotImplementedError(f"codegen not implemented for {expr}")
     return eval(summary)
 
-def write_to_disk_for_millennium(str):
+def write_to_disk_for_millennium(contents):
     with open("/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/conv1d_synth.c", "w") as file:
-        file.write(str)
+        file.write(contents)
 
 def runner(basename):
     filename = f"tests/{basename}.ll"
@@ -376,7 +376,7 @@ int main() {
   exit(0);
 }
 """
-        code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
+        code = code.replace('@@@RUNNER_LEN@@@', str(kernel_len))
         print(code)
         write_to_disk_for_millennium(code)
 
