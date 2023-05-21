@@ -1,4 +1,5 @@
 import shutil
+import time
 from functools import reduce
 
 # modified runner to check larger arrays
@@ -325,7 +326,10 @@ def runner(basename):
         invAndPs = [grammar(ci, kernel_size) for ci in loopAndPsInfo]
         lang = targetLang(kernel_size)
         try:
+            start_time = time.time()
             candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=LIST_BOUND, noVerify=True)
+            end_time = time.time()
+            print(f"Synthesis took {end_time - start_time} seconds")
             break
         except SynthesisFailed:
             print("Synthesis failed")
@@ -372,7 +376,7 @@ int main() {
   uint64_t end_g = read_cycles();
   printf("Hardware conv took %llu cycles\\n", end_g - start_g);
 
-  print1d(Out);
+  //print1d(Out);
   exit(0);
 }
 """
