@@ -384,7 +384,7 @@ int main() {
   uint64_t start_cpu = read_cycles();
   naive_conv1d(In, Out);
   uint64_t end_cpu = read_cycles();
-  printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
+  printf("CPU conv took %llu cycles\\n", end_cpu - start_cpu);
 
   uint64_t start_g = read_cycles();
   runner(In, Out);
