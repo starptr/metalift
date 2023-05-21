@@ -1,4 +1,5 @@
 import shutil
+import time
 from functools import reduce
 
 # modified runner to check larger arrays
@@ -221,6 +222,16 @@ def codeGenToGemmini(summary: FnDecl):
                       }
                       printf("\\n");
                     }
+
+                    void naive_conv1d(elem_t input[2][LEN], elem_t output[1][SLIDES]) {
+                      for (int i = 0; i < LEN; i++) {
+                        input[0][i] = i;
+                      }
+                      
+                      for (int i = 0; i < SLIDES; i++) {
+                        output[0][i] = input[0][i] + input[0][i+1];
+                      }
+                    }
                     """
             kernel_assignments = [f"weights[0][{i}] = {weight};" for i, weight in enumerate(kernel_vals)]
             kernel_assignments = "\n".join(kernel_assignments)
@@ -325,7 +336,10 @@ def runner(basename):
         invAndPs = [grammar(ci, kernel_size) for ci in loopAndPsInfo]
         lang = targetLang(kernel_size)
         try:
+            start_time = time.time()
             candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=LIST_BOUND, noVerify=True)
+            end_time = time.time()
+            print(f"Synthesis took {end_time - start_time} seconds")
             break
         except SynthesisFailed:
             print("Synthesis failed")
@@ -367,12 +381,17 @@ int main() {
     In[0][j] = j;
   }
 
+  uint64_t start_cpu = read_cycles();
+  naive_conv1d(In, Out);
+  uint64_t end_cpu = read_cycles();
+  printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
+
   uint64_t start_g = read_cycles();
   runner(In, Out);
   uint64_t end_g = read_cycles();
   printf("Hardware conv took %llu cycles\\n", end_g - start_g);
 
-  print1d(Out);
+  //print1d(Out);
   exit(0);
 }
 """

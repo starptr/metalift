@@ -477,7 +477,8 @@ def synthesize(
 
             if noVerify:
                 if log:
-                    print("Not verifying solution")
+                    #print("Not verifying solution")
+                    pass
                 resultVerify = "unsat"
             else:
                 try:
