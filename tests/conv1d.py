@@ -222,6 +222,16 @@ def codeGenToGemmini(summary: FnDecl):
                       }
                       printf("\\n");
                     }
+
+                    void naive_conv1d(elem_t input[2][LEN], elem_t output[1][SLIDES]) {
+                      for (int i = 0; i < LEN; i++) {
+                        input[0][i] = i;
+                      }
+                      
+                      for (int i = 0; i < SLIDES; i++) {
+                        output[0][i] = input[0][i] + input[0][i+1];
+                      }
+                    }
                     """
             kernel_assignments = [f"weights[0][{i}] = {weight};" for i, weight in enumerate(kernel_vals)]
             kernel_assignments = "\n".join(kernel_assignments)
@@ -370,6 +380,11 @@ int main() {
   for (int j = 0; j < LEN; j++) {
     In[0][j] = j;
   }
+
+  uint64_t start_cpu = read_cycles();
+  naive_conv1d(In, Out);
+  uint64_t end_cpu = read_cycles();
+  printf("CPU conv took %llu cycles\n", end_cpu - start_cpu);
 
   uint64_t start_g = read_cycles();
   runner(In, Out);
