@@ -316,8 +316,8 @@ def codeGenToGemmini(summary: FnDecl):
             raise NotImplementedError(f"codegen not implemented for {expr}")
     return eval(summary)
 
-def write_to_disk_for_millennium(contents):
-    with open("/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/conv1d_synth.c", "w") as file:
+def write_to_disk_for_millennium(fname, contents):
+    with open(f"/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/{fname}.c", "w") as file:
         file.write(contents)
 
 def runner(basename):
@@ -398,7 +398,7 @@ int main() {
         LEN = 5 # I get to set this in this in the string above
         code = code.replace('@@@RUNNER_LEN@@@', str(LEN))
         print(code)
-        write_to_disk_for_millennium(code)
+        write_to_disk_for_millennium(f"{basename}_synth", code)
 
 # # Expected:
 # import torch
