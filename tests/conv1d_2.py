@@ -428,7 +428,7 @@ int main() {
 # l = [i for i in range(100000)]
 # o = test(None, l)
 # print(o)
-runner("conv1d")
+#runner("conv1d")
 
 # # Expected:
 # import torch
@@ -438,4 +438,4 @@ runner("conv1d")
 # l = [i for i in range(100000)]
 # o = test(None, l)
 # print(o)
-#runner("conv1d_2")
+runner("conv1d_2")
