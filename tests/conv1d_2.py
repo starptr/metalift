@@ -417,8 +417,8 @@ int main() {
         LEN = 5 # I get to set this in this in the string above
         code = code.replace('@@@RUNNER_LEN@@@', str(LEN))
         print(code)
-        write_to_disk_for_millennium(f"{basename}_synth", code)
-        write_to_disk_torch(f"{basename}_synth", codeGenToPytorchWithEnv(c))
+        #write_to_disk_for_millennium(f"{basename}_synth", code)
+        #write_to_disk_torch(f"{basename}_synth", codeGenToPytorchWithEnv(c))
 
 # # Expected:
 # import torch
@@ -428,7 +428,7 @@ int main() {
 # l = [i for i in range(100000)]
 # o = test(None, l)
 # print(o)
-runner("conv1d")
+#runner("conv1d")
 
 # # Expected:
 # import torch
@@ -438,4 +438,4 @@ runner("conv1d")
 # l = [i for i in range(100000)]
 # o = test(None, l)
 # print(o)
-#runner("conv1d_2")
+runner("conv1d_2")
