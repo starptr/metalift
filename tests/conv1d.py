@@ -179,7 +179,7 @@ def codeGenToPytorch(summary: FnDecl):
                     cdr = flatten_prepends(arguments[1])
                     return [car] + cdr
                 flattened = flatten_prepends(expr)
-                print(flattened)
+                #print(flattened)
                 return f"[{', '.join(flattened)}]"
             raise NotImplementedError(f"codegen not implemented for function call {name}")
         elif isinstance(expr, Lit):
