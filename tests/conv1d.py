@@ -195,6 +195,21 @@ def codeGenToPytorch(summary: FnDecl):
             raise NotImplementedError(f"codegen not implemented for {expr}")
     return eval(summary)
 
+def codeGenToPytorchWithEnv(summary: FnDecl):
+    inner = codeGenToPytorch(summary)
+    code = \
+"""
+import torch
+mps_device = torch.device("mps")
+""" + \
+inner + \
+"""
+l = [i for i in range(100000)]
+o = test(None, l)
+print(o)
+"""
+    return code
+
 def codeGenToGemmini(summary: FnDecl):
     kernel_vals = []
     def eval(expr):
@@ -320,6 +335,10 @@ def write_to_disk_for_millennium(fname, contents):
     with open(f"/scratch/metaliftDeps/chipyard/generators/gemmini/software/gemmini-rocc-tests/bareMetalC/{fname}.c", "w") as file:
         file.write(contents)
 
+def write_to_disk_torch(fname, contents):
+    with open(f"/home/metalift/{fname}.py", "w") as file:
+        file.write(contents)
+
 def runner(basename):
     filename = f"tests/{basename}.ll"
     fnName = "test"
@@ -399,6 +418,7 @@ int main() {
         code = code.replace('@@@RUNNER_LEN@@@', str(LEN))
         print(code)
         write_to_disk_for_millennium(f"{basename}_synth", code)
+        write_to_disk_torch(f"{basename}_synth", codeGenToPytorchWithEnv(c))
 
 # # Expected:
 # import torch
