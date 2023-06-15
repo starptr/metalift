@@ -8,8 +8,11 @@ from metalift.synthesize_auto import synthesize
 LIST_BOUND = 4
 
 CONV2D2X2 = "conv2d2x2"
+CONV2D2X2_2 = "conv2d2x2_2"
 CONV2D2X2_HELPER = "conv2d2x2_helper"
+CONV2D2X2_HELPER2 = "conv2d2x2_helper2"
 CONV2D2X2_INNER = "conv2d2x2_inner"
+CONV2D2X2_INNER2 = "conv2d2x2_inner2"
 DOTPROD2X2 = "dotprod_2x2"
 SLICE_COPY_2X2 = "slide_copy_2x2"
 
@@ -46,6 +49,9 @@ def ml_list_list_prepend(e, lst):
 def ml_list_list_empty():
     return Call("list_list_empty", ListT(ListT(Int())))
 
+def ml_list_list_take(lst, i):
+    return Call("list_list_take", ListT(ListT(Int())), lst, i)
+
 def ml_min(a, b):
     return Ite(Lt(a, b), a, b)
 
@@ -55,11 +61,20 @@ def ml_dotprod2x2(mat, kernel, i, j):
 def ml_conv2d2x2(mat, kernel):
     return Call(CONV2D2X2, ListT(ListT(Int())), mat, kernel)
 
+def ml_conv2d2x2_2(mat, kernel):
+    return Call(CONV2D2X2_2, ListT(ListT(Int())), mat, kernel)
+
 def ml_conv2d2x2_helper(mat, kernel, i, stopping):
     return Call(CONV2D2X2_HELPER, ListT(ListT(Int())), mat, kernel, i, stopping)
 
+def ml_conv2d2x2_helper2(mat, kernel, i, j):
+    return Call(CONV2D2X2_HELPER2, ListT(ListT(Int())), mat, kernel, i, j)
+
 def ml_conv2d2x2_inner(mat, kernel, i, j, stopping):
     return Call(CONV2D2X2_INNER, ListT(Int()), mat, kernel, i, j, stopping)
+
+def ml_conv2d2x2_inner2(mat, kernel, i, j):
+    return Call(CONV2D2X2_INNER2, ListT(Int()), mat, kernel, i, j)
 
 def grammar(ci: CodeInfo):
     name = ci.name
@@ -75,45 +90,82 @@ def grammar(ci: CodeInfo):
     kernel_r2 = kernel_r1
     kernel = ml_list_list_prepend(kernel_r1, ml_list_list_prepend(kernel_r2, ml_list_list_empty()))
 
+    const_kernel_r1 = ml_list_prepend(IntLit(-1), ml_list_prepend(1, ml_list_empty()))
+    const_kernel_r2 = ml_list_prepend(IntLit(-1), ml_list_prepend(1, ml_list_empty()))
+    const_kernel = ml_list_list_prepend(const_kernel_r1, ml_list_list_prepend(const_kernel_r2, ml_list_list_empty()))
+
     if name.startswith("inv0"):
         an_output_i32 = Choose(ci.modifiedVars[1], ci.modifiedVars[3])
         an_output_list = ci.modifiedVars[0]
         an_output_nlist = ci.modifiedVars[2]
         an_input_nlist = ci.readVars[0]
-        valid = Gt(ml_list_list_length(an_input_nlist), IntLit(1))
+        #valid = Gt(ml_list_list_length(an_input_nlist), IntLit(1))
+        #preloop = Ge(an_output_i32, IntLit(0))
+        #postloop = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
+        #induction = Eq(an_output_nlist, ml_conv2d2x2_helper(an_input_nlist,
+        #                                                    kernel,
+        #                                                    IntLit(0),
+        #                                                    Add(an_output_i32, IntLit(1))))
+        #summary = Implies(valid, And(preloop, And(postloop, induction)))
+        #return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        valid = Eq(ml_list_list_length(an_input_nlist), IntLit(3))
         preloop = Ge(an_output_i32, IntLit(0))
-        postloop = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
-        induction = Eq(an_output_nlist, ml_conv2d2x2_helper(an_input_nlist,
-                                                            kernel,
-                                                            IntLit(0),
-                                                            Add(an_output_i32, IntLit(1))))
+        postloop = Lt(an_output_i32, ml_list_length(an_input_nlist))
+        mat = ml_list_list_take(an_input_nlist, Add(an_output_i32, IntLit(1)))
+
+        outer_conv = ml_conv2d2x2_2(mat, const_kernel)
+        induction = Eq(an_output_nlist, outer_conv)
         summary = Implies(valid, And(preloop, And(postloop, induction)))
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+
     elif name.startswith("inv1"):
         an_output_i32 = Choose(ci.modifiedVars[1], ci.modifiedVars[3])
         an_output_list = ci.modifiedVars[0]
         an_output_nlist = ci.modifiedVars[2]
         an_input_nlist = ci.readVars[0]
         length = ml_list_length(ml_list_list_get(an_input_nlist, an_output_i32))
-        valid = Gt(length, IntLit(1))
-        preloop = Ge(an_output_i32, IntLit(0))
-        postloop = Lt(an_output_i32, length)
-        preloop_outer = Ge(an_output_i32, IntLit(0))
-        postloop_outer = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
-        induction = Eq(an_output_list, ml_conv2d2x2_inner(an_input_nlist,
-                                                           kernel,
-                                                           an_output_i32,
-                                                           an_output_i32,
-                                                           Add(an_output_i32, IntLit(1))))
-        summary = Implies(valid, And(preloop, And(postloop, And(preloop_outer, And(postloop_outer, induction)))))
+        #valid = Gt(length, IntLit(1))
+        #preloop = Ge(an_output_i32, IntLit(0))
+        #postloop = Lt(an_output_i32, length)
+        #preloop_outer = Ge(an_output_i32, IntLit(0))
+        #postloop_outer = Lt(an_output_i32, ml_list_list_length(an_input_nlist))
+        #induction = Eq(an_output_list, ml_conv2d2x2_inner(an_input_nlist,
+        #                                                   kernel,
+        #                                                   an_output_i32,
+        #                                                   an_output_i32,
+        #                                                   Add(an_output_i32, IntLit(1))))
+        #summary = Implies(valid, And(preloop, And(postloop, And(preloop_outer, And(postloop_outer, induction)))))
+        #return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        #return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[2]), *ci.modifiedVars, *ci.readVars)
+        valid = Eq(ml_list_list_length(an_input_nlist), IntLit(3))
+        preloop1 = Ge(an_output_i32, IntLit(0))
+        preloop2 = Ge(an_output_i32, IntLit(0)) # TODO: might have to explicitly different from preloop1
+        postloop1 = Lt(an_output_i32, ml_list_length(ml_list_list_get(an_input_nlist, IntLit(0))))
+        postloop2 = Lt(an_output_i32, Sub(ml_list_list_length(an_input_nlist), IntLit(1)))
+
+        mat = ml_list_list_take(an_input_nlist, Add(an_output_i32, IntLit(1)))
+        outer_conv = ml_conv2d2x2_2(mat, const_kernel)
+        induction1 = Eq(an_output_nlist, outer_conv)
+
+        inner_mat_part1 = ml_list_take(ml_list_list_get(an_input_nlist, an_output_i32), Add(an_output_i32, IntLit(1)))
+        inner_mat_part2 = ml_list_take(ml_list_list_get(an_input_nlist, Add(an_output_i32, IntLit(1))), Add(an_output_i32, IntLit(1)))
+        mat = ml_list_list_prepend(inner_mat_part1, ml_list_list_prepend(inner_mat_part2, ml_list_list_empty()))
+        inner_conv = ml_conv2d2x2_inner2(mat, const_kernel, IntLit(0), IntLit(0))
+        induction2 = Eq(an_output_list, inner_conv)
+        summary_rhs = And(preloop1, And(preloop2, And(postloop1, And(postloop2, And(induction1, And(induction2))))))
+        summary = Implies(valid, summary_rhs)
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
-        return Synth(name, Eq(ci.readVars[0], ci.modifiedVars[2]), *ci.modifiedVars, *ci.readVars)
     else:
         an_output = ci.modifiedVars[0]
         an_input = ci.readVars[0]
-        valid = And(Gt(ml_list_list_length(an_input), IntLit(1)),
-                    Gt(ml_list_length(ml_list_list_get(an_input, IntLit(0))), IntLit(1)))
-        ans = ml_conv2d2x2(an_input, kernel)
+        #valid = And(Gt(ml_list_list_length(an_input), IntLit(1)),
+        #            Gt(ml_list_length(ml_list_list_get(an_input, IntLit(0))), IntLit(1)))
+        #ans = ml_conv2d2x2(an_input, kernel)
+        #check_ans = Eq(ans, an_output)
+        #summary = Implies(valid, check_ans)
+        #return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
+        valid = Eq(ml_list_list_length(an_input), IntLit(3))
+        ans = ml_conv2d2x2_2(an_input, kernel)
         check_ans = Eq(ans, an_output)
         summary = Implies(valid, check_ans)
         return Synth(name, summary, *ci.modifiedVars, *ci.readVars)
@@ -159,6 +211,15 @@ def targetLang():
         return base_case_or(general_answer)
     conv2d2x2_helper = FnDeclRecursive(CONV2D2X2_HELPER, ListT(ListT(Int())), conv2d2x2Helper_body(mat, kernel, i, stopping), mat, kernel, i, stopping)
 
+    def conv2d2x2Helper2_body(mat, kernel, i, j):
+        cond = Or(Lt(i, IntLit(0)), Ge(i, Sub(ml_list_list_length(mat), IntLit(1))))
+        
+        cur_term = ml_conv2d2x2_inner2(mat, kernel, i, j)
+        recursed = ml_conv2d2x2_helper2(mat, kernel, Add(i, IntLit(1)), IntLit(0))
+        general_answer = ml_list_list_prepend(cur_term, recursed)
+        return Ite(cond, ml_list_list_empty(), general_answer)
+    conv2d2x2_helper2 = FnDeclRecursive(CONV2D2X2_HELPER2, ListT(ListT(Int())), conv2d2x2Helper2_body(mat, kernel, i, j), mat, kernel, i, j)
+
     def conv2d2x2Inner_body(mat, kernel, i, j, stopping):
         last_valid_j = Sub(stopping, IntLit(1))
         base_case_2_or = lambda general_case: Ite(Gt(j, last_valid_j), ml_list_empty(), general_case)
@@ -169,12 +230,25 @@ def targetLang():
         return base_case_2_or(general_answer_2)
     conv2d2x2_inner = FnDeclRecursive(CONV2D2X2_INNER, ListT(Int()), conv2d2x2Inner_body(mat, kernel, i, j, stopping), mat, kernel, i, j, stopping)
 
+    def conv2d2x2Inner2_body(mat, kernel, i, j):
+        cond = Or(Lt(j, IntLit(0)), Ge(j, Sub(ml_list_length(ml_list_list_get(mat, i)), IntLit(1))))
+
+        cur_term = ml_dotprod2x2(mat, kernel, i, j)
+        recursed = ml_conv2d2x2_inner2(mat, kernel, i, Add(j, IntLit(1)))
+        general_answer = ml_list_prepend(cur_term, recursed)
+        return Ite(cond, ml_list_empty(), general_answer)
+    conv2d2x2_inner2 = FnDeclRecursive(CONV2D2X2_INNER2, ListT(Int()), conv2d2x2Inner2_body(mat, kernel, i, j), mat, kernel, i, j)
+
     def conv2d2x2_body(mat, kernel):
         last_valid_i = Sub(ml_list_list_length(mat), ml_list_list_length(kernel)) # TODO: subtract kernel
         return ml_conv2d2x2_helper(mat, kernel, IntLit(0), Add(last_valid_i, IntLit(1)))
     conv2d2x2 = FnDeclRecursive(CONV2D2X2, ListT(ListT(Int())), conv2d2x2_body(mat, kernel), mat, kernel)
 
-    return [dotprod2x2, conv2d2x2, conv2d2x2_inner, conv2d2x2_helper]
+    def conv2d2x2_2_body(mat, kernel):
+        return ml_conv2d2x2_helper2(mat, kernel, IntLit(0), IntLit(0))
+    conv2d2x2_2 = FnDeclRecursive(CONV2D2X2_2, ListT(ListT(Int())), conv2d2x2_2_body(mat, kernel), mat, kernel)
+
+    return [dotprod2x2, conv2d2x2, conv2d2x2_2, conv2d2x2_inner, conv2d2x2_inner2, conv2d2x2_helper, conv2d2x2_helper2]
 
 def runner(basename):
     filename = f"tests/{basename}.ll"
