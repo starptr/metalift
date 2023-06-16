@@ -90,8 +90,8 @@ def grammar(ci: CodeInfo):
     kernel_r2 = kernel_r1
     kernel = ml_list_list_prepend(kernel_r1, ml_list_list_prepend(kernel_r2, ml_list_list_empty()))
 
-    const_kernel_r1 = ml_list_prepend(IntLit(-1), ml_list_prepend(1, ml_list_empty()))
-    const_kernel_r2 = ml_list_prepend(IntLit(-1), ml_list_prepend(1, ml_list_empty()))
+    const_kernel_r1 = ml_list_prepend(IntLit(-1), ml_list_prepend(IntLit(1), ml_list_empty()))
+    const_kernel_r2 = ml_list_prepend(IntLit(-1), ml_list_prepend(IntLit(1), ml_list_empty()))
     const_kernel = ml_list_list_prepend(const_kernel_r1, ml_list_list_prepend(const_kernel_r2, ml_list_list_empty()))
 
     if name.startswith("inv0"):
