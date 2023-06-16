@@ -365,6 +365,7 @@ class Expr:
         "list_list_prepend": "list-list-prepend",
         "list_eq": "equal?",
         "list_concat": "list-concat",
+        "list_list_take": "list-list-take-noerr",
     }
 
     def toRosette(
