@@ -50,7 +50,7 @@ def ml_list_list_empty():
     return Call("list_list_empty", ListT(ListT(Int())))
 
 def ml_list_list_take(lst, i):
-    return Call("list_list_take", ListT(ListT(Int())), lst, i)
+    return Call("list-list-take-noerr", ListT(ListT(Int())), lst, i)
 
 def ml_min(a, b):
     return Ite(Lt(a, b), a, b)
