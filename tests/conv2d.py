@@ -250,6 +250,150 @@ def targetLang():
 
     return [dotprod2x2, conv2d2x2, conv2d2x2_2, conv2d2x2_inner, conv2d2x2_inner2, conv2d2x2_helper, conv2d2x2_helper2]
 
+def codeGenToGemmini(summary: FnDecl):
+    kernel_vals = []
+    def eval(expr):
+        nonlocal kernel_vals
+        if isinstance(expr, ValueRef):
+            return expr.name
+        elif isinstance(expr, Eq):
+            left = expr.e1()
+            right = expr.e2()
+            if isinstance(left, Call):
+                return f"{eval(left)}"
+            else:
+                return f"{eval(right)}"
+        elif isinstance(expr, FnDecl) or isinstance(expr, FnDeclRecursive):
+            arg = eval(expr.arguments()[0])
+            body = eval(expr.body()) # Sets kernel_vals
+            macros = f"#define KER_LEN {len(kernel_vals)}\n" \
+                    f"#define LEN @@@RUNNER_LEN@@@\n" \
+                    f"#define SLIDES ((LEN) - (KER_LEN) + 1)\n"
+            helpers = \
+                    """
+                    void print1d(elem_t Out[1][SLIDES]) {
+                      for (int j = 0; j < SLIDES; j++) {
+                        printf("%d, ", Out[0][j]);
+                      }
+                      printf("\\n");
+                    }
+
+                    void naive_conv1d(elem_t input[2][LEN], elem_t output[1][SLIDES]) {
+                      for (int i = 0; i < LEN; i++) {
+                        input[0][i] = i;
+                      }
+                      
+                      for (int i = 0; i < SLIDES; i++) {
+                        output[0][i] = input[0][i] + input[0][i+1];
+                      }
+                    }
+                    """
+            #kernel_assignments = [f"weights[0][{i}] = {weight};" for i, weight in enumerate(kernel_vals)]
+            #kernel_assignments = "\n".join(kernel_assignments)
+            kernel_assignments = ""
+            for i, row in enumerate(kernel_vals):
+                for j, weight in enumerate(row):
+                    kernel_assignments += f"weights[{i}][{j}] = {weight};\n"
+            #kernel_zeros = f"for (int i = 1; i < KER_LEN; i++) {{\n" \
+            #        f"for (int j = 0; j < KER_LEN; j++) {{\n" \
+            #        f"weights[i][j] = 0;\n" \
+            #        f"}}\n" \
+            #        f"}}\n"
+            kernel_zeros = ""
+            code = f"{macros}\n" \
+                    f"{helpers}\n" \
+                    f"void runner(elem_t In[KER_LEN][LEN], elem_t Out[1][SLIDES]) {{\n" \
+                    f"static elem_t weights[KER_LEN][KER_LEN];\n" \
+                    f"{kernel_assignments}\n" \
+                    f"{kernel_zeros}\n" \
+                    f"{body}\n" \
+                    f"}}"
+            return code
+            #return f"tiled_conv_auto(1, 1, LEN, 1," \
+            #        f"1, 1, SLIDES," \
+            #        f"1, 1, 1, 0, 2," \
+            #        f"false, false, false, false, false," \
+            #        f"(elem_t*)In," \
+            #        f"(elem_t*)weights," \
+            #        f"NULL," \
+            #        f"(elem_t*)Out," \
+            #        f"0, 0, 0, 0, 0, WS);"
+            #return f"def {expr.name()}({', '.join([eval(arg) for arg in expr.arguments()])}):\n    " \
+            #        f"return {eval(expr.body())}"
+        elif isinstance(expr, Call):
+            eval_args = []
+            for a in expr.arguments():
+                eval_args.append(eval(a))
+            name = expr.name()
+            if name == CONV2D2X2_2:
+                name = "tiled_conv_auto"
+                assert(len(eval_args) == 2)
+
+                code = f"{name}(\n" \
+                        f"1, LEN, LEN, 1,\n" \
+                        f"1, SLIDES, SLIDES,\n" \
+                        f"1, 1, 1, 0, KER_LEN,\n" \
+                        f"false, false, false, false, false,\n" \
+                        f"(elem_t*)In,\n" \
+                        f"(elem_t*)weights,\n" \
+                        f"NULL,\n" \
+                        f"(elem_t*)Out,\n" \
+                        f"0, 0, 0, 0, 0, WS);\n"
+                return code
+                #input = f"torch.tensor([[{eval_args[0]}]]).float().to(mps_device)"
+                #kernel = f"torch.tensor([[{eval_args[1]}]]).float().to(mps_device)"
+                #return f"{name}({input}, {kernel})"
+            elif name == "list_empty":
+                return f"list_empty()"
+            elif name == "list_list_empty":
+                return f"list_list_empty()"
+            elif name == "list_list_prepend":
+                def flatten_prepends_outer(expr):
+                    name = expr.name()
+                    if name == "list_list_empty":
+                        return []
+                    assert(name == "list_list_prepend")
+                    arguments = expr.arguments()
+                    assert(len(arguments) == 2)
+                    car = eval(arguments[0])
+                    cdr = flatten_prepends_outer(arguments[1])
+                    return [car] + cdr
+                flattened = flatten_prepends_outer(expr)
+                if len(flattened) == 2:
+                    kernel_vals = flattened
+                return f"[{', '.join(flattened)}]"
+
+            elif name == "list_prepend":
+                def flatten_prepends(expr):
+                    name = expr.name()
+                    # Base case
+                    if name == "list_empty":
+                        return []
+                    # General case
+                    assert(name == "list_prepend")
+                    arguments = expr.arguments()
+                    assert(len(arguments) == 2)
+                    car = eval(arguments[0])
+                    cdr = flatten_prepends(arguments[1])
+                    return [car] + cdr
+                flattened = flatten_prepends(expr)
+                #if len(flattened) == 2:
+                #    kernel_vals = flattened
+                return f"[{', '.join(flattened)}]"
+            raise NotImplementedError(f"codegen not implemented for function call {name}")
+        elif isinstance(expr, Lit):
+            return str(expr.val())
+        elif isinstance(expr, Var):
+            return expr.name()
+        elif isinstance(expr, Implies):
+            left = expr.args[0]
+            right = expr.args[1]
+            return eval(right)
+            return f"not ({eval(left)}) or ({eval(right)})"
+        else:
+            raise NotImplementedError(f"codegen not implemented for {expr}")
+    return eval(summary)
+
 def runner(basename):
     filename = f"tests/{basename}.ll"
     fnName = "test"
@@ -265,6 +409,57 @@ def runner(basename):
     candidates = synthesize(basename, lang, vars, invAndPs, preds, vc, loopAndPsInfo, cvcPath, listBound=LIST_BOUND, noVerify=True)
 
     for c in candidates:
-        print(c)
+        if c.args[0] != "test":
+            continue
+        inner = codeGenToGemmini(c)
+        code = \
+"""
+#include <stdint.h>
+#include <stddef.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#ifndef BAREMETAL
+#include <sys/mman.h>
+#endif
+#include "include/gemmini_testutils.h"
+""" + \
+inner + \
+"""
+int main() {
+#ifndef BAREMETAL
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+      perror("mlockall failed");
+      exit(1);
+    }
+#endif
+
+  printf("Size of DIM: %d\\n", DIM);
+  printf("Flush Gemmini TLB of stale virtual addresses\\n");
+  gemmini_flush(0);
+
+  static elem_t In[2][LEN];
+  static elem_t Out[1][SLIDES];
+  for (int j = 0; j < LEN; j++) {
+    In[0][j] = j;
+  }
+
+  uint64_t start_cpu = read_cycles();
+  naive_conv1d(In, Out);
+  uint64_t end_cpu = read_cycles();
+  printf("CPU conv took %llu cycles\\n", end_cpu - start_cpu);
+
+  uint64_t start_g = read_cycles();
+  runner(In, Out);
+  uint64_t end_g = read_cycles();
+  printf("Hardware conv took %llu cycles\\n", end_g - start_g);
+
+  //print1d(Out);
+  exit(0);
+}
+"""
+        LEN = 5 # I get to set this in this in the string above
+        code = code.replace('@@@RUNNER_LEN@@@', str(LEN))
+        print(code)
 
 runner("conv2d")
