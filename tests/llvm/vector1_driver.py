@@ -6,7 +6,6 @@ from metalift.frontend.llvm import Driver
 from metalift.ir import And, Bool, BoolLit, Call, Choose, Eq, Expr, FnDecl,FnDeclRecursive, Ge, Gt, Int, IntLit, Ite, Le, ListT, Lt, Var
 from tests.python.utils.utils import codegen
 
-
 def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
     arg = Var("n", Int())
     select_pred = FnDecl("Select-pred", Bool(), Gt(arg, IntLit(2)), arg)
