@@ -56,6 +56,7 @@ from metalift.ir import Var, parse_type_ref
 from metalift.synthesize_auto import synthesize as run_synthesis  # type: ignore
 from metalift.vc import Block
 from metalift.vc_util import and_exprs, or_exprs
+from mypy_extensions import VarArg
 
 # Helper classes
 RawLoopInfo = NamedTuple(
@@ -412,14 +413,14 @@ class Predicate:
             self.name, Bool(), *[state.read_or_load_var(v[0]) for v in self.args]
         )
 
-    def gen_Synth(self) -> Synth:
+    def gen_Synth(self, combine_fn: Callable[[VarArg(Expr)], Expr] = and_exprs) -> Synth:
         # print(f"gen args: {self.args}, writes: {self.writes}, reads: {self.reads}, scope: {self.in_scope}")
         writes = [Var(v[0], v[1]) for v in self.writes]
         reads = [Var(v[0], v[1]) for v in self.reads]
 
         v_exprs = [self.grammar(v, writes, reads) for v in writes]
 
-        body = and_exprs(*v_exprs)
+        body = combine_fn(*v_exprs)
 
         vars = [Var(v[0], v[1]) for v in self.args]
         return Synth(self.name, body, *vars)
@@ -945,7 +946,7 @@ class VCVisitor:
         blk_state.has_returned = True
 
     def visit_call_instruction(self, block_name: str, o: ValueRef) -> None:
-        
+
         blk_state = self.fn_blocks_states[block_name]
         ops = list(o.operands)
         fn_name = get_fn_name_from_call_instruction(o)
@@ -1013,8 +1014,14 @@ class Driver:
         self.fns[fn_name] = f
         return f
 
-    def synthesize(self) -> None:
-        synths = [i.gen_Synth() for i in self.pred_tracker.predicates.values()]
+    def synthesize(self, combine_fn_mapping: Dict[str, Callable[[VarArg(Expr)], Expr]] = {}) -> None:
+        synths: List[Synth] = []
+        for predicate_name, predicate in self.pred_tracker.predicates.items():
+            print("predicate_name", predicate_name)
+            if predicate_name in combine_fn_mapping.keys():
+                synths.append(predicate.gen_Synth(combine_fn_mapping[predicate_name]))
+            else:
+                synths.append(predicate.gen_Synth())
 
         print("asserts: %s" % self.asserts)
         vc = and_exprs(*self.asserts)
