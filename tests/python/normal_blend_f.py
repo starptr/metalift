@@ -3,11 +3,32 @@ from typing import List, Union
 from mypy.nodes import Statement
 
 from metalift.frontend.llvm import Driver
-from metalift.ir import And, Bool, BoolLit, Call, Choose, Eq, Expr, FnDecl,FnDeclRecursive, Ge, Gt, Int, IntLit, Ite, Le, ListT, Lt, Var
+from metalift.ir import And, Bool, BoolLit, Call, Choose, Eq, Expr, FnDecl,FnDeclRecursive, Ge, Gt, Int, IntLit, Ite, Le, ListT, Lt, Var, Add, Mul, Sub, Implies
 from tests.python.utils.utils import codegen
 
 VECTORADD = "vector_add"
 SCALARMUL = "scalar_mul"
+
+def ml_list_get(lst, i):
+    return Call("list_get", Int(), lst, i)
+
+def ml_list_head(lst):
+    return ml_list_get(lst, IntLit(0))
+
+def ml_list_tail(lst, i):
+    return Call("list_tail", ListT(Int()), lst, i)
+
+def ml_list_prepend(e, lst):
+    return Call("list_prepend", ListT(Int()), e, lst)
+
+def ml_list_length(lst):
+    return Call("list_length", Int(), lst)
+
+def ml_list_empty():
+    return Call("list_empty", ListT(Int()))
+
+def ml_list_take(lst, i):
+    return Call("list_take", ListT(Int()), lst, i)
 
 def call_vector_add(left, right):
     return Call(VECTORADD, ListT(Int()), left, right)
@@ -26,7 +47,7 @@ def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
         cur = Add(ml_list_head(left), ml_list_head(right))
         left_rest = ml_list_tail(left, IntLit(1))
         right_rest = ml_list_tail(right, IntLit(1))
-        recursed = ml_vector_add(left_rest, right_rest)
+        recursed = call_vector_add(left_rest, right_rest)
         general_answer = ml_list_prepend(cur, recursed)
         return Ite(Lt(vec_size, IntLit(1)), ml_list_empty(), general_answer)
     vector_add = FnDeclRecursive(VECTORADD, ListT(Int()), vector_add_body(x, y), x, y)
@@ -35,7 +56,7 @@ def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
         vec_size = ml_list_length(arr)
         cur = Mul(scalar, ml_list_head(arr))
         arr_rest = ml_list_tail(arr, IntLit(1))
-        recursed = ml_scalar_mul(scalar, arr_rest)
+        recursed = call_scalar_mul(scalar, arr_rest)
         general_answer = ml_list_prepend(cur, recursed)
         return Ite(Lt(vec_size, IntLit(1)), ml_list_empty(), general_answer)
     scalar_mul = FnDeclRecursive(SCALARMUL, ListT(Int()), scalar_mul_body(a, x), a, x)
@@ -46,12 +67,33 @@ def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
     # reads = [in_lst]
     print("reads: ")
     print(*reads)
+    base = reads[0]
+    active = reads[1]
+    opacity = reads[2]
     # give answer using reads[[#]]
     #Call("list_eq", Bool(), ret_val, )
-    return BoolLit(True)
+    return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))),
+        Call("list_eq", Bool(), ret_val, call_vector_add(call_scalar_mul(opacity, active), call_scalar_mul(Sub(IntLit(1), opacity), base))))
 
 def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    return BoolLit(True)
+    print("writes: ")
+    print(*writes)
+    print(v)
+    #return BoolLit(True)
+    base = reads[0]
+    active = reads[1]
+    opacity = reads[2]
+    out = call_vector_add(call_scalar_mul(opacity, active), call_scalar_mul(Sub(IntLit(1), opacity), base))
+    def invariant(base, active, out, opacity, pixel):
+        return And(Ge(pixel, IntLit(0)),
+            Le(pixel, ml_list_length(active)),
+            Eq(ml_list_take(out, pixel),
+                call_vector_add(call_scalar_mul(opacity, ml_list_take(active, pixel)),
+                    call_scalar_mul(Sub(IntLit(1), opacity), ml_list_take(base, pixel)))))
+    if v.name() == "i":
+        return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))), invariant(base, active, out, opacity, v))
+    else:
+        return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))), BoolLit(True))
     ## This grammar func could be called with v as `i` or `out_lst`, and we really only want to generate this grammar once.
     #if v.name() != "i":
     #    return BoolLit(True)
