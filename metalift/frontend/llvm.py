@@ -607,6 +607,7 @@ class VCVisitor:
                 )
 
     def visit_instruction(self, block_name: str, o: ValueRef) -> None:
+        print(o)
         if o.opcode == "alloca":
             self.visit_alloca_instruction(block_name, o)
         elif o.opcode == "load":
@@ -938,7 +939,9 @@ class VCVisitor:
                 blk_state.primitive_vars, blk_state.pointer_vars, {}, *ops[:-1]
             )
             if rv.val and o.name != "":
+                # TODO: how to differentiate between writing to primitive vs writing to pointer var
                 self.write_operand_to_block(block_name=block_name, op=o, val=rv.val)
+                self.store_operand_to_block(block_name=block_name, op=o, val=rv.val)
             if rv.assigns:
                 for name, value in rv.assigns:
                     self.write_var_to_block(
