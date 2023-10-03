@@ -387,7 +387,7 @@ class Predicate:
     writes: List[LLVMVar]
     reads: List[LLVMVar]
     name: str
-    grammar: Callable[[Var, List[Var], List[Var]], Expr]
+    grammar: Callable[[List[Var], List[Var]], Expr]
     synth: Optional[Synth]
 
     # argument ordering convention:
@@ -399,7 +399,7 @@ class Predicate:
         writes: List[LLVMVar],
         reads: List[LLVMVar],
         name: str,
-        grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        grammar: Callable[[List[Var], List[Var]], Expr],
     ) -> None:
         self.args = args
         self.writes = writes
@@ -413,17 +413,12 @@ class Predicate:
             self.name, Bool(), *[state.read_or_load_var(v[0]) for v in self.args]
         )
 
-    def gen_Synth(self, combine_fn: Callable[[Dict[str, Expr]], Expr] = lambda d: and_exprs(*list(d.values()))) -> Synth:
+    def gen_Synth(self) -> Synth:
         # print(f"gen args: {self.args}, writes: {self.writes}, reads: {self.reads}, scope: {self.in_scope}")
         writes = [Var(v[0], v[1]) for v in self.writes]
         reads = [Var(v[0], v[1]) for v in self.reads]
 
-        v_exprs = {
-            v.name(): self.grammar(v, writes, reads)
-            for v in writes
-        }
-
-        body = combine_fn(v_exprs)
+        body = self.grammar(writes, reads)
 
         vars = [Var(v[0], v[1]) for v in self.args]
         return Synth(self.name, body, *vars)
@@ -443,7 +438,7 @@ class PredicateTracker:
         args: List[LLVMVar],
         writes: List[LLVMVar],
         reads: List[LLVMVar],
-        grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        grammar: Callable[[List[Var], List[Var]], Expr],
     ) -> Predicate:
         if inv_name in self.predicates.keys():
             return self.predicates[inv_name]
@@ -459,7 +454,7 @@ class PredicateTracker:
         fn_name: str,
         outs: List[LLVMVar],
         ins: List[LLVMVar],
-        grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        grammar: Callable[[List[Var], List[Var]], Expr],
     ) -> Predicate:
         if fn_name in self.predicates:
             return self.predicates[fn_name]
@@ -482,8 +477,8 @@ class VCVisitor:
     var_tracker: VariableTracker
     pred_tracker: PredicateTracker
 
-    inv_grammar: Callable[[Var, List[Var], List[Var]], Expr]
-    ps_grammar: Callable[[Var, List[Var], List[Var]], Expr]
+    inv_grammar: Callable[[List[Var], List[Var]], Expr]
+    ps_grammar: Callable[[List[Var], List[Var]], Expr]
 
     loops: List[LoopInfo]
 
@@ -495,8 +490,8 @@ class VCVisitor:
         fn_sret_arg: Optional[Var],
         var_tracker: VariableTracker,
         pred_tracker: PredicateTracker,
-        inv_grammar: Callable[[Var, List[Var], List[Var]], Expr],
-        ps_grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        inv_grammar: Callable[[List[Var], List[Var]], Expr],
+        ps_grammar: Callable[[List[Var], List[Var]], Expr],
         loops: List[LoopInfo],
     ) -> None:
         self.fn_name = fn_name
@@ -1002,8 +997,8 @@ class Driver:
         loops_filepath: str,
         fn_name: str,
         target_lang_fn: Callable[[], List[FnDecl]],
-        inv_grammar: Callable[[Var, List[Var], List[Var]], Expr],
-        ps_grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        inv_grammar: Callable[[List[Var], List[Var]], Expr],
+        ps_grammar: Callable[[List[Var], List[Var]], Expr],
     ) -> "MetaliftFunc":
         f = MetaliftFunc(
             driver=self,
@@ -1017,14 +1012,8 @@ class Driver:
         self.fns[fn_name] = f
         return f
 
-    def synthesize(self, combine_fn_mapping: Dict[str, Callable[[Dict[str, Expr]], Expr]] = {}) -> None:
-        synths: List[Synth] = []
-        for predicate_name, predicate in self.pred_tracker.predicates.items():
-            print("predicate_name", predicate_name)
-            if predicate_name in combine_fn_mapping.keys():
-                synths.append(predicate.gen_Synth(combine_fn_mapping[predicate_name]))
-            else:
-                synths.append(predicate.gen_Synth())
+    def synthesize(self) -> None:
+        synths = [i.gen_Synth() for i in self.pred_tracker.predicates.values()]
 
         print("asserts: %s" % self.asserts)
         vc = and_exprs(*self.asserts)
@@ -1063,8 +1052,8 @@ class MetaliftFunc:
     fn_blocks: Dict[str, Block]
 
     target_lang_fn: Callable[[], List[FnDecl]]
-    inv_grammar: Callable[[Var, List[Var], List[Var]], Expr]
-    ps_grammar: Callable[[Var, List[Var], List[Var]], Expr]
+    inv_grammar: Callable[[List[Var], List[Var]], Expr]
+    ps_grammar: Callable[[List[Var], List[Var]], Expr]
     synthesized: Optional[Expr]
 
     loops: List[LoopInfo]
@@ -1076,8 +1065,8 @@ class MetaliftFunc:
         loops_filepath: str,
         fn_name: str,
         target_lang_fn: Callable[[], List[FnDecl]],
-        inv_grammar: Callable[[Var, List[Var], List[Var]], Expr],
-        ps_grammar: Callable[[Var, List[Var], List[Var]], Expr],
+        inv_grammar: Callable[[List[Var], List[Var]], Expr],
+        ps_grammar: Callable[[List[Var], List[Var]], Expr],
     ) -> None:
         self.driver = driver
         self.fn_name = fn_name

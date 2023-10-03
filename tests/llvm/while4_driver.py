@@ -21,10 +21,10 @@ def target_lang() -> List[FnDeclRecursive]:
     return [sum_n]
 
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    return Eq(ret_val, Call("sum_n", Int(), Choose(IntLit(1), IntLit(2))))
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
+    return Eq(writes[0], Call("sum_n", Int(), Choose(IntLit(1), IntLit(2))))
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     e = Choose(*writes)
     f = Choose(IntLit(1), IntLit(2), IntLit(3))
     c = Eq(e, Call("sum_n", Int(), Sub(e, f)))

@@ -105,8 +105,9 @@ def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
         select_func2,
     ]
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     # reads = [in_lst]
+    ret_val = writes[0]
     return Choose(
         Call("list_eq", Bool(), ret_val, *reads),
         Call("list_eq", Bool(), ret_val, Call("Select", ListT(Int()), *reads)),
@@ -114,11 +115,7 @@ def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
         Call("list_eq", Bool(), ret_val, Call("Select2", ListT(Int()), *reads))
     )
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    # This grammar func could be called with v as `i` or `out_lst`, and we really only want to generate this grammar once.
-    if v.name() != "i":
-        return BoolLit(True)
-
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     # writes = [out_lst, i]
     # reads = [in]
     out_lst, i = writes[0], writes[1]

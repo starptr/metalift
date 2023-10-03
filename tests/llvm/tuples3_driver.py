@@ -15,12 +15,12 @@ def target_lang():
     )
     return [double]
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     raise Exception("no invariant")
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    r = writes[0]
-    (x, y) = reads
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
+    ret_val = writes[0]
+    x, y = reads
     summary = Choose(
         Eq(ret_val, Add(double(x), double(y))),
         Eq(ret_val, Sub(double(x), double(y))),

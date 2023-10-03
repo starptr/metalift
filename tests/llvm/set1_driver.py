@@ -15,10 +15,10 @@ def target_lang():
     )
     return [double]
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     raise Exception("no invariant")
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     inputS = reads[0]
     inputAdd = reads[1]
     inputValue = reads[2]

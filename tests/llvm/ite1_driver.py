@@ -8,12 +8,12 @@ def target_lang() -> List[FnDecl]:
     return []
 
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    i = reads[0]
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
+    ret_val, i = writes[0], reads[0]
     return Eq(ret_val, Ite(Gt(i, IntLit(10)), IntLit(1), IntLit(2)))
 
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     raise Exception("no loop in the source")
 
 

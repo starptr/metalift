@@ -1,7 +1,7 @@
 from typing import List
 
 from metalift.frontend.llvm import Driver
-from metalift.ir import (Add, Call, Choose, Eq, Expr, FnDecl, Int, 
+from metalift.ir import (Add, Call, Choose, Eq, Expr, FnDecl, Int,
                          FnDeclRecursive, IntLit, Mul, Sub, Tuple, TupleGet, TupleT, Var)
 from tests.python.utils.utils import codegen
 
@@ -15,11 +15,12 @@ def target_lang():
     )
     return [tuple_add]
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     raise Exception("no invariant")
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    (x, y) = reads
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
+    x, y = reads
+    ret_val = writes[0]
     summary = Choose(
         Eq(ret_val, Add(tuple_add(Tuple(x, x)), tuple_add(Tuple(y, y)))),
         Eq(ret_val, Sub(tuple_add(Tuple(x, x)), tuple_add(Tuple(y, y)))),

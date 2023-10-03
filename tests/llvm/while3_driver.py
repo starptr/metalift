@@ -20,8 +20,8 @@ def target_lang() -> List[FnDeclRecursive]:
     return [sum_n]
 
 
-def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    input_arg = reads[0]
+def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
+    ret_val, input_arg = writes[0], reads[0]
     int_lit = Choose(IntLit(0), IntLit(1), IntLit(2))
     input_arg_bound = Choose(
         Ge(input_arg, int_lit),
@@ -37,9 +37,7 @@ def ps_grammar(ret_val: Var, writes: List[Var], reads: List[Var]) -> Expr:
     )
     return Eq(ret_val, ite_stmt)
 
-def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
-    if v.name() != "x":
-        return BoolLit(True)
+def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     x, y = writes
     input_arg = reads[0]
     int_lit = Choose(IntLit(0), IntLit(1), IntLit(2))
