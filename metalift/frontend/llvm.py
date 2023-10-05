@@ -413,14 +413,17 @@ class Predicate:
             self.name, Bool(), *[state.read_or_load_var(v[0]) for v in self.args]
         )
 
-    def gen_Synth(self, combine_fn: Callable[[VarArg(Expr)], Expr] = and_exprs) -> Synth:
+    def gen_Synth(self, combine_fn: Callable[[Dict[str, Expr]], Expr] = lambda d: and_exprs(*list(d.values()))) -> Synth:
         # print(f"gen args: {self.args}, writes: {self.writes}, reads: {self.reads}, scope: {self.in_scope}")
         writes = [Var(v[0], v[1]) for v in self.writes]
         reads = [Var(v[0], v[1]) for v in self.reads]
 
-        v_exprs = [self.grammar(v, writes, reads) for v in writes]
+        v_exprs = {
+            v.name(): self.grammar(v, writes, reads)
+            for v in writes
+        }
 
-        body = combine_fn(*v_exprs)
+        body = combine_fn(v_exprs)
 
         vars = [Var(v[0], v[1]) for v in self.args]
         return Synth(self.name, body, *vars)
@@ -1014,7 +1017,7 @@ class Driver:
         self.fns[fn_name] = f
         return f
 
-    def synthesize(self, combine_fn_mapping: Dict[str, Callable[[VarArg(Expr)], Expr]] = {}) -> None:
+    def synthesize(self, combine_fn_mapping: Dict[str, Callable[[Dict[str, Expr]], Expr]] = {}) -> None:
         synths: List[Synth] = []
         for predicate_name, predicate in self.pred_tracker.predicates.items():
             print("predicate_name", predicate_name)
