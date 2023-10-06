@@ -92,6 +92,8 @@ def inv_grammar(v: Var, writes: List[Var], reads: List[Var]) -> Expr:
                     call_scalar_mul(Sub(IntLit(1), opacity), ml_list_take(base, pixel)))))
     if v.name() == "i":
         return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))), invariant(base, active, out, opacity, v))
+    elif v.name() == "ref.tmp":
+        return BoolLit(True)
     else:
         return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))), BoolLit(True))
     ## This grammar func could be called with v as `i` or `out_lst`, and we really only want to generate this grammar once.
@@ -167,6 +169,15 @@ if __name__ == "__main__":
 
     test(base_var, active_var, opacity_var)
 
-    driver.synthesize()
+    def wrap_inv(modifiedVar_to_expr):
+        assert "agg.result" in modifiedVar_to_expr
+        assert "ref.tmp" in modifiedVar_to_expr
+        assert "i" in modifiedVar_to_expr
+        Implies(BoolLit(True), modifiedVar_to_expr["i"])
+
+    comb_invariants = {
+        "test_inv0": wrap_inv,
+    }
+    driver.synthesize(comb_invariants)
 
     print("\n\ngenerated code:" + test.codegen(codegen))
