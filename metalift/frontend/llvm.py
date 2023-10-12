@@ -1012,7 +1012,7 @@ class Driver:
         self.fns[fn_name] = f
         return f
 
-    def synthesize(self) -> None:
+    def synthesize(self, **synthesize_kwargs) -> None:
         synths = [i.gen_Synth() for i in self.pred_tracker.predicates.values()]
 
         print("asserts: %s" % self.asserts)
@@ -1023,7 +1023,15 @@ class Driver:
             target += fn.target_lang_fn()
 
         synthesized: List[FnDeclRecursive] = run_synthesis(
-            "test", target, set(self.var_tracker.all()), synths, [], vc, synths, "cvc5"
+            basename="test",
+            targetLang=target,
+            vars=set(self.var_tracker.all()),
+            invAndPs=synths,
+            preds=[],
+            vc=vc,
+            loopAndPsInfo=synths,
+            cvcPath="cvc5",
+            **synthesize_kwargs
         )
 
         for f in synthesized:
