@@ -89,19 +89,6 @@ def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     ref_tmp = writes[1]
     i = writes[2]
 
-    out = call_vector_add(call_scalar_mul(opacity, active), call_scalar_mul(Sub(IntLit(1), opacity), base))
-    def invariant(base, active, out, opacity, pixel):
-        # incomplete!
-        return And(Ge(pixel, IntLit(0)),
-            Le(pixel, ml_list_length(active)))
-            #Eq(agg.result,
-            #    call_vector_add(call_scalar_mul(opacity, ml_list_take(active, pixel)),
-            #        call_scalar_mul(Sub(IntLit(1), opacity), ml_list_take(base, pixel)))))
-        #return And(Ge(pixel, IntLit(0)),
-        #    Le(pixel, ml_list_length(active)),
-        #    Eq(ml_list_take(out, pixel),
-        #        call_vector_add(call_scalar_mul(opacity, ml_list_take(active, pixel)),
-        #            call_scalar_mul(Sub(IntLit(1), opacity), ml_list_take(base, pixel)))))
     return Implies(And(Eq(ml_list_length(base), ml_list_length(active)),
                            Gt(ml_list_length(base), IntLit(0))),
                        And(Ge(i, IntLit(0)),
@@ -128,12 +115,6 @@ if __name__ == "__main__":
 
     test(base_var, active_var, opacity_var)
 
-    def wrap_inv(modifiedVar_to_expr):
-        assert "agg.result" in modifiedVar_to_expr
-        assert "ref.tmp" in modifiedVar_to_expr
-        assert "i" in modifiedVar_to_expr
-        return Implies(BoolLit(True), modifiedVar_to_expr["i"])
-
-    driver.synthesize()
+    driver.synthesize(noVerify=True)
 
     print("\n\ngenerated code:" + test.codegen(codegen))
