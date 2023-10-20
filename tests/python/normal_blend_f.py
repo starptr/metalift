@@ -118,3 +118,25 @@ if __name__ == "__main__":
     driver.synthesize(noVerify=True)
 
     print("\n\ngenerated code:" + test.codegen(codegen))
+
+    def print_line():
+        print("--------------------------------------------")
+        print("--------------------------------------------")
+        print("--------------------------------------------")
+    print_line()
+
+    driver = Driver()
+    normal_blend_8 = driver.analyze(
+        "tests/llvm/normal_blend_8.ll",
+        "tests/llvm/normal_blend_8.loops",
+        "normal_blend_8",
+        target_lang,
+        inv_grammar,
+        ps_grammar
+    )
+    base_var = driver.variable("base", ListT(Int()))
+    active_var = driver.variable("active", ListT(Int()))
+    opacity_var = driver.variable("opacity", Int())
+
+    normal_blend_8(base_var, active_var, opacity_var)
+    driver.synthesize(noVerify=True)
