@@ -1041,6 +1041,18 @@ class Driver:
                 if isinstance(f.body(), Eq):
                     self.fns[name].synthesized = cast(Eq, f.body()).e2()
                     print(f"{name} synthesized: {self.fns[name].synthesized}")
+                if isinstance(f.body(), Implies):
+                    rhs = cast(Implies, f.body()).args[1]
+                    if isinstance(rhs, Eq):
+                        self.fns[name].synthesized = cast(Eq, rhs).e2()
+                        print(f"{name} synthesized: {self.fns[name].synthesized}")
+                    elif isinstance(rhs, Call):
+                        self.fns[name].synthesized = cast(Call, rhs).args[2]
+                        print(f"{name} synthesized: {self.fns[name].synthesized}")
+                    else:
+                        raise Exception(
+                            f"unhandled situation"
+                        )
                 else:
                     raise Exception(
                         f"synthesized fn body doesn't have form val = ...: {f.body()}"
