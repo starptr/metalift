@@ -12,6 +12,7 @@ SCALARMUL = "scalar_mul"
 BROADCASTADD = "broadcast_add"
 REDUCESUM = "reduce_sum"
 REDUCEMUL = "reduce_mul"
+ELEMWISESQUARE = "elemwise_square"
 
 def ml_list_get(lst, i):
     return Call("list_get", Int(), lst, i)
@@ -52,6 +53,11 @@ def call_reduce_mul(lst):
 def call_elemwise_mul(left, right):
     return Call(ELEMWISEMUL, ListT(Int()), left, right)
 
+def call_elemwise_square(lst):
+    return Call(ELEMWISESQUARE, ListT(Int()), lst)
+
+a_scalar = Choose(IntLit(0), IntLit(1), IntLit(2), IntLit(3), IntLit(-1), IntLit(-2), IntLit(-3))
+
 an_arr2_to_arr = lambda left, right: Choose(
     call_elemwise_mul(left, right),
     call_vector_add(left, right),
@@ -63,6 +69,10 @@ an_int_and_arr_to_arr = lambda num, arr: Choose(
 an_arr_to_int = lambda arr: Choose(
     call_reduce_sum(arr),
     call_reduce_mul(arr),
+)
+
+an_arr_to_arr = lambda arr: Choose(
+    call_elemwise_square(arr),
 )
 
 def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
@@ -127,4 +137,8 @@ def target_lang() -> List[Union[FnDecl, FnDeclRecursive]]:
         return Ite(Lt(vec_size, IntLit(1)), ml_list_empty(), general_answer)
     elemwise_mul = FnDeclRecursive(ELEMWISEMUL, ListT(Int()), elemwise_mul_body(x, y), x, y)
 
-    return [vector_add, elemwise_mul, scalar_mul, broadcast_add, reduce_sum, reduce_mul]
+    def elemwise_square_body(lst):
+        return call_elemwise_mul(lst, lst)
+    elemwise_square = FnDeclRecursive(ELEMWISESQUARE, ListT(Int()), elemwise_square_body(x), x)
+
+    return [vector_add, elemwise_mul, elemwise_square, scalar_mul, broadcast_add, reduce_sum, reduce_mul]

@@ -23,12 +23,12 @@ def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     ret_val = writes[0]
 
     an_arr = Choose(input, weight)
-    an_int = Choose(epsilon, hidden_size, IntLit(-1), IntLit(0), IntLit(1), IntLit(2), IntLit(3))
+    an_int = Choose(epsilon, hidden_size, a_scalar)
 
     computed_arr = Choose(an_arr2_to_arr(an_arr, an_arr), an_int_and_arr_to_arr(an_int, an_arr))
 
-    return Implies(And(Eq(ml_list_length(input), ml_list_length(weight)),
-                       Gt(ml_list_length(input), IntLit(0))),
+    return Implies(And(Eq(ml_list_length(an_arr), ml_list_length(an_arr)),
+                       Gt(ml_list_length(an_arr), IntLit(0))),
         Eq(ret_val,
             an_arr_to_int(computed_arr)))
 
@@ -36,7 +36,7 @@ def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     return Implies(And(Eq(ml_list_length(input), ml_list_length(weight)),
                        Gt(ml_list_length(input), IntLit(0))),
         Eq(ret_val,
-            call_reduce_sum(call_scalar_mul(IntLit(2), input))))
+            call_reduce_sum(call_elemwise_mul(input, input))))
 
 def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     print("reads: ")
@@ -51,16 +51,16 @@ def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     variance = writes[0]
     i = writes[1]
 
-    an_int = Choose(epsilon, hidden_size, IntLit(-1), IntLit(0), IntLit(1), IntLit(2), IntLit(3), i, variance)
+    an_int = Choose(epsilon, hidden_size, a_scalar, i, variance)
     an_arr = Choose(input, weight)
     an_arr = Choose(an_arr, ml_list_take(an_arr, an_int))
 
     computed_arr = Choose(an_arr2_to_arr(an_arr, an_arr), an_int_and_arr_to_arr(an_int, an_arr))
 
-    return Implies(And(Eq(ml_list_length(input), ml_list_length(weight)),
-                           Gt(ml_list_length(input), IntLit(0))),
-                       And(Ge(i, IntLit(0)),
-                           Le(i, ml_list_length(input)),
+    return Implies(And(Eq(ml_list_length(an_arr), ml_list_length(an_arr)),
+                           Gt(ml_list_length(an_arr), IntLit(0))),
+                       And(Ge(an_int, IntLit(0)),
+                           Le(an_int, ml_list_length(an_arr)),
                            Eq(an_int,
                               an_arr_to_int(computed_arr)
                            )))
@@ -71,7 +71,7 @@ def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
                        And(Ge(i, IntLit(0)),
                            Le(i, ml_list_length(input)),
                            Eq(variance,
-                              call_reduce_sum(call_scalar_mul(IntLit(2), ml_list_take(input, i)))
+                              call_reduce_sum(call_elemwise_mul(ml_list_take(input, i), ml_list_take(input, i)))
                            )))
 
 if __name__ == "__main__":
