@@ -20,6 +20,17 @@ def ps_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     ret_val = writes[0]
     # give answer using reads[[#]]
     #Call("list_eq", Bool(), ret_val, )
+
+    an_arr = Choose(base, active)
+    an_int = Choose(opacity, a_scalar)
+    an_int = Choose(an_int, ml_list_length(an_arr))
+    an_int = Choose(an_int, Add(an_int, an_int), Sub(an_int, an_int))
+
+
+    return Implies(And(Eq(ml_list_length(an_arr), ml_list_length(an_arr)), Gt(ml_list_length(an_arr), IntLit(0))),
+        Call("list_eq", Bool(), ret_val, an_arr2_to_arr(an_int_and_arr_to_arr(an_int, an_arr), an_int_and_arr_to_arr(an_int, an_arr))))
+
+    # answer
     return Implies(And(Eq(ml_list_length(base), ml_list_length(active)), Gt(ml_list_length(base), IntLit(0))),
         Call("list_eq", Bool(), ret_val, call_vector_add(call_scalar_mul(opacity, active), call_scalar_mul(Sub(IntLit(1), opacity), base))))
 
@@ -34,6 +45,21 @@ def inv_grammar(writes: List[Var], reads: List[Var]) -> Expr:
     ref_tmp = writes[1]
     i = writes[2]
 
+    an_arr = Choose(base, active, agg_result)
+    an_int = Choose(opacity, a_scalar, i, ref_tmp)
+    an_int = Choose(an_int, ml_list_length(an_arr))
+    an_int = Choose(an_int, Add(an_int, an_int), Sub(an_int, an_int))
+
+    return Implies(And(Eq(ml_list_length(base), ml_list_length(active)),
+                           Gt(ml_list_length(base), IntLit(0))),
+                       And(Ge(i, IntLit(0)),
+                           Le(i, ml_list_length(active)),
+                           Eq(agg_result,
+                              an_arr2_to_arr(an_int_and_arr_to_arr(an_int, ml_list_take(an_arr, i)),
+                                    an_int_and_arr_to_arr(an_int, ml_list_take(an_arr, i)))
+                              )))
+
+    # answer
     return Implies(And(Eq(ml_list_length(base), ml_list_length(active)),
                            Gt(ml_list_length(base), IntLit(0))),
                        And(Ge(i, IntLit(0)),
@@ -48,7 +74,7 @@ if __name__ == "__main__":
     test = driver.analyze(
         "tests/llvm/normal_blend_f.ll",
         "tests/llvm/normal_blend_f.loops",
-        "test",
+        "normal_blend_f",
         target_lang,
         inv_grammar,
         ps_grammar
@@ -63,6 +89,9 @@ if __name__ == "__main__":
     driver.synthesize(noVerify=True)
 
     print("\n\ngenerated code:" + test.codegen(codegen))
+
+    # END
+    exit()
 
     def print_line():
         print("--------------------------------------------")
