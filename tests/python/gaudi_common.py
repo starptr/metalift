@@ -35,6 +35,18 @@ def ml_list_empty():
 def ml_list_take(lst, i):
     return Call("list_take", ListT(Int()), lst, i)
 
+def ml_list_list_get(lst, i):
+    return Call("list_list_get", ListT(Int()), lst, i)
+
+def ml_list_list_length(lst):
+    return Call("list_list_length", Int(), lst)
+
+def ml_list_list_prepend(e, lst):
+    return Call("list_list_prepend", ListT(ListT(Int())), e, lst)
+
+def ml_list_list_empty():
+    return Call("list_list_empty", ListT(ListT(Int())))
+
 def call_vector_add(left, right):
     return Call(VECTORADD, ListT(Int()), left, right)
 
@@ -56,7 +68,9 @@ def call_elemwise_mul(left, right):
 def call_elemwise_square(lst):
     return Call(ELEMWISESQUARE, ListT(Int()), lst)
 
-a_scalar = Choose(IntLit(0), IntLit(1), IntLit(2), IntLit(3), IntLit(-1), IntLit(-2), IntLit(-3))
+a_pos_scalar = Choose(IntLit(1), IntLit(2), IntLit(3), IntLit(255))
+a_nonneg_scalar = Choose(a_pos_scalar, IntLit(0))
+a_scalar = Choose(a_nonneg_scalar, Sub(IntLit(0), a_pos_scalar))
 
 an_arr2_to_arr = lambda left, right: Choose(
     call_elemwise_mul(left, right),
